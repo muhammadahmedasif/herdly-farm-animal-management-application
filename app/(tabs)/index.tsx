@@ -17,7 +17,6 @@ import {
   Baby,
   Syringe,
   Pill,
-  Bell,
   PlusCircle,
   TrendingUp,
   AlertCircle,
@@ -109,12 +108,6 @@ export default function HomeScreen() {
       <GradientHeader
         title="Herdly"
         subtitle="Livestock Management"
-        right={
-          <TouchableOpacity style={s.bellBtn} activeOpacity={0.8}>
-            <Bell color="#fff" size={22} strokeWidth={2} />
-            <View style={s.bellDot} />
-          </TouchableOpacity>
-        }
       />
 
       <ScrollView
@@ -235,17 +228,7 @@ const s = StyleSheet.create({
   },
   appName: { fontSize: 28, fontWeight: '900', color: '#fff', letterSpacing: -0.5 },
   appSub:  { fontSize: 13, color: 'rgba(255,255,255,0.65)', fontWeight: '600', marginTop: 1 },
-  bellBtn: {
-    width: 44, height: 44, borderRadius: 22,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  bellDot: {
-    position: 'absolute', top: 8, right: 8,
-    width: 10, height: 10, borderRadius: 5,
-    backgroundColor: Colors.danger,
-    borderWidth: 2, borderColor: Colors.primary,
-  },
+
 
   // Body
   body: { flex: 1, backgroundColor: 'transparent', borderTopLeftRadius: 28, borderTopRightRadius: 28 },

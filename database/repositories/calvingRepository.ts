@@ -7,6 +7,7 @@
  * so a failure can never leave a half-written calving (calf without mother update,
  * or calving without calf).
  */
+import { Platform } from 'react-native';
 import type { SQLiteDatabase } from 'expo-sqlite';
 import type { Calving, Animal } from '../../types';
 import { getDb } from '../database';
@@ -66,6 +67,29 @@ async function insertCalvingRow(db: SQLiteDatabase, c: Calving): Promise<void> {
   );
 }
 
+async function insertCalfAnimalRow(db: SQLiteDatabase, calf: Animal, imageUrl: string): Promise<void> {
+  await db.runAsync(
+    `INSERT INTO animals (
+      id, tag_number, name, species, breed, sex, date_of_birth, dob_is_estimated,
+      color, repro_status, lactation_number, last_insemination_date, image_url,
+      notes, created_at, updated_at
+    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    [
+      calf.id, calf.tag_number ?? '', calf.name ?? 'Unknown', calf.species, calf.breed ?? '',
+      calf.sex, calf.date_of_birth ?? '', calf.dob_is_estimated ? 1 : 0, calf.color ?? '',
+      calf.repro_status, calf.lactation_number ?? null, calf.last_insemination_date ?? null,
+      imageUrl, calf.notes ?? '', calf.created_at || nowIso(), calf.updated_at ?? nowIso(),
+    ],
+  );
+}
+
+async function updateMotherRow(db: SQLiteDatabase, motherUpdate: Animal): Promise<void> {
+  await db.runAsync(
+    `UPDATE animals SET repro_status = ?, lactation_number = ?, updated_at = ? WHERE id = ?`,
+    [motherUpdate.repro_status, motherUpdate.lactation_number ?? null, nowIso(), motherUpdate.id],
+  );
+}
+
 export const calvingRepository = {
   async createCalving(c: Calving, db: SQLiteDatabase = getDb()): Promise<void> {
     await insertCalvingRow(db, c);
@@ -108,9 +132,16 @@ export const calvingRepository = {
   },
 
   /**
-   * ATOMIC calving write.
-   * Inserts the calving record, optionally inserts the calf animal, and
-   * optionally updates the mother — all in one exclusive transaction.
+   * ATOMIC calving write (native) / sequential write (web).
+   *
+   * On native: runs inside a single exclusive SQLite transaction so a failure
+   * never leaves a half-written record.
+   * On web: `withExclusiveTransactionAsync` is not supported — writes run
+   * sequentially (best-effort). Image URIs are kept as-is on web since the
+   * local filesystem is not available.
+   *
+   * Image persistence is done BEFORE the DB writes so the URI is ready in all
+   * cases, and the manipulator temp file is cleaned up regardless of outcome.
    */
   async recordCalving(
     calving: Calving,
@@ -118,32 +149,27 @@ export const calvingRepository = {
     motherUpdate?: Animal,
     db: SQLiteDatabase = getDb(),
   ): Promise<void> {
-    await db.withExclusiveTransactionAsync(async (tx) => {
-      await insertCalvingRow(tx, calving);
-      if (calf) {
-        const image_url = await persistAnimalImage(calf.id, calf.image_url);
-        await tx.runAsync(
-          `INSERT INTO animals (
-            id, tag_number, name, species, breed, sex, date_of_birth, dob_is_estimated,
-            color, repro_status, lactation_number, last_insemination_date, image_url,
-            notes, created_at, updated_at
-          ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-          [
-            calf.id, calf.tag_number ?? '', calf.name ?? 'Unknown', calf.species, calf.breed ?? '',
-            calf.sex, calf.date_of_birth ?? '', calf.dob_is_estimated ? 1 : 0, calf.color ?? '',
-            calf.repro_status, calf.lactation_number ?? null, calf.last_insemination_date ?? null,
-            image_url, calf.notes ?? '', calf.created_at || nowIso(), calf.updated_at ?? nowIso(),
-          ],
-        );
-      }
-      if (motherUpdate) {
-        await tx.runAsync(
-          `UPDATE animals SET repro_status = ?, lactation_number = ?, updated_at = ? WHERE id = ?`,
-          [motherUpdate.repro_status, motherUpdate.lactation_number ?? null, nowIso(), motherUpdate.id],
-        );
-      }
-    });
+    // Persist the calf image BEFORE any DB writes — manipulateAsync cannot
+    // run inside a SQLite exclusive transaction (it's async / JS-side).
+    const calfImageUrl = calf
+      ? await persistAnimalImage(calf.id, calf.image_url)
+      : '';
+
+    if (Platform.OS !== 'web') {
+      // Native path: fully atomic exclusive transaction.
+      await db.withExclusiveTransactionAsync(async (tx) => {
+        await insertCalvingRow(tx, calving);
+        if (calf) await insertCalfAnimalRow(tx, calf, calfImageUrl);
+        if (motherUpdate) await updateMotherRow(tx, motherUpdate);
+      });
+    } else {
+      // Web path: sequential writes (withExclusiveTransactionAsync not supported on web).
+      await insertCalvingRow(db, calving);
+      if (calf) await insertCalfAnimalRow(db, calf, calfImageUrl);
+      if (motherUpdate) await updateMotherRow(db, motherUpdate);
+    }
   },
+
 
   async insertRaw(c: Calving, db: SQLiteDatabase = getDb()): Promise<void> {
     await db.runAsync(

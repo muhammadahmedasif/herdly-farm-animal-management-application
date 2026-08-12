@@ -1,13 +1,13 @@
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { Picker } from '@react-native-picker/picker';
-import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { Calendar, Camera, Check, Hash, Info, Tag, User, X } from 'lucide-react-native';
 import React, { useMemo, useState } from 'react';
 import {
   Image,
   Platform,
+  SafeAreaView,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   TextInput,
@@ -15,11 +15,13 @@ import {
   View,
 } from 'react-native';
 import Toast from 'react-native-toast-message';
-import { AppBackground } from '../../components/ui';
+import { AppBackground, Select } from '../../components/ui';
+import { useImagePicker } from '../../components/PhotoPicker';
 import { Colors, Shadows } from '../../constants/Colors';
 import { SPECIES_EMOJI, SPECIES_LIST } from '../../constants/livestock';
 import { useStore } from '../../store/StoreContext';
-import { Animal, ReproStatus, Sex, Species } from '../../types';
+import { Animal, Calving, ReproStatus, Sex, Species } from '../../types';
+import { persistAnimalImage } from '../../database/imageStorage';
 import { uuid } from '../../utils/uuid';
 import { addDays, dateFromAge, formatAge, getGestationDays, toDateString } from '../../utils/date';
 import { getEffectiveLactation } from '../../utils/lactation';
@@ -29,8 +31,9 @@ type AgeInput = { years: string; months: string };
 
 export default function RegisterAnimalScreen() {
   const router = useRouter();
-  const { animals, addAnimal } = useStore();
+  const { animals, addAnimal, addCalving } = useStore();
   const now = useNow();
+  const imagePicker = useImagePicker();
 
   const [tag, setTag] = useState('');
   const [name, setName] = useState('');
@@ -59,18 +62,6 @@ export default function RegisterAnimalScreen() {
   // Optional animal + calf photos (kept as local uris; not uploaded to a server)
   const [image, setImage] = useState<string | null>(null);
   const [calfRegImage, setCalfRegImage] = useState<string | null>(null);
-
-  const pickImage = async (setter: (uri: string | null) => void) => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.7,
-    });
-    if (!result.canceled && result.assets && result.assets.length > 0) {
-      setter(result.assets[0].uri);
-    }
-  };
 
   // Suggest a calf tag derived from the mother's tag, e.g. C-102 -> C-102A, C-102B, ...
   const suggestCalfTag = () => {
@@ -147,8 +138,11 @@ export default function RegisterAnimalScreen() {
     const isEstimated = ageMode === 'age';
     const finalDob = isEstimated ? calculateDobFromAge() : dob;
 
+    const animalId = uuid();
+    const image_url = await persistAnimalImage(animalId, image);
+
     const newAnimal: Animal = {
-      id: uuid(),
+      id: animalId,
       tag_number: tag,
       name: name.trim() || 'Unknown',
       species,
@@ -160,7 +154,7 @@ export default function RegisterAnimalScreen() {
       repro_status: reproStatus,
       lactation_number: sex === 'Female' ? lactationNo : undefined,
       last_insemination_date: sex === 'Female' && ['Pregnant', 'Inseminated'].includes(reproStatus) ? toDateString(inseminationDate) : undefined,
-      image_url: image || '',
+      image_url,
       notes: '',
       created_at: new Date().toISOString(),
     };
@@ -169,8 +163,10 @@ export default function RegisterAnimalScreen() {
 
     // Register the calf along with its pregnant mother in one step
     if (registerCalf) {
+      const calfId = uuid();
+      const calfImage = await persistAnimalImage(calfId, calfRegImage);
       const calf: Animal = {
-        id: uuid(),
+        id: calfId,
         tag_number: calfRegTag.trim(),
         name: calfRegName.trim() || `Calf of ${newAnimal.tag_number}`,
         species: newAnimal.species,
@@ -182,11 +178,25 @@ export default function RegisterAnimalScreen() {
         repro_status: 'Calf',
         lactation_number: undefined,
         last_insemination_date: undefined,
-        image_url: calfRegImage || '',
+        image_url: calfImage,
         notes: `Mother Tag: ${newAnimal.tag_number}`,
         created_at: new Date().toISOString(),
       };
       await addAnimal(calf);
+
+      // Also create a calving record linking the mother to this calf
+      const calvingRecord: Calving = {
+        id: uuid(),
+        animal_id: newAnimal.id,
+        calving_date: expectedCalfDob,
+        calf_tag: calfRegTag.trim(),
+        calf_name: calfRegName.trim() || `Calf of ${newAnimal.tag_number}`,
+        calf_sex: calfRegSex,
+        complications: '',
+        notes: '',
+        created_at: new Date().toISOString(),
+      };
+      await addCalving(calvingRecord);
     }
 
     Toast.show({ type: 'success', text1: 'Awesome!', text2: 'Animal registered successfully.' });
@@ -195,7 +205,9 @@ export default function RegisterAnimalScreen() {
 
   return (
     <AppBackground>
-      <ScrollView style={s.container} contentContainerStyle={s.content} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+      <SafeAreaView style={{ flex: 1 }}>
+        <StatusBar backgroundColor={Colors.primary} barStyle="light-content" />
+        <ScrollView style={s.container} contentContainerStyle={s.content} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
         {/* Herd group banner */}
         <View style={s.heroBanner}>
@@ -256,7 +268,7 @@ export default function RegisterAnimalScreen() {
 
           {/* Optional animal photo */}
           <View style={s.photoField}>
-            <TouchableOpacity style={s.photoBox} activeOpacity={0.8} onPress={() => pickImage(setImage)}>
+            <TouchableOpacity style={s.photoBox} activeOpacity={0.8} onPress={() => imagePicker.open(setImage)}>
               {image ? (
                 <Image source={{ uri: image }} style={s.photoPreview} resizeMode="contain" />
               ) : (
@@ -295,10 +307,11 @@ export default function RegisterAnimalScreen() {
             <View style={[s.inputGroup, { flex: 1, paddingRight: 6 }]}>
               <Text style={s.label}>Sex</Text>
               <View style={s.pickerContainer}>
-                <Picker selectedValue={sex} onValueChange={(v) => setSex(v as Sex)} style={s.picker}>
-                  <Picker.Item label="Female" value="Female" />
-                  <Picker.Item label="Male" value="Male" />
-                </Picker>
+                <Select
+                  value={sex}
+                  onValueChange={(v) => setSex(v as Sex)}
+                  options={[{ label: 'Female', value: 'Female' }, { label: 'Male', value: 'Male' }]}
+                />
               </View>
             </View>
 
@@ -362,13 +375,13 @@ export default function RegisterAnimalScreen() {
               <View style={{ flex: 1, marginLeft: 8 }}>
                 <View style={[s.inputGroup, { marginBottom: 0 }]}>
                   <Text style={s.label}>Status</Text>
-                  <View style={s.pickerContainer}>
-                    <Picker selectedValue={reproStatus} onValueChange={(v) => setReproStatus(v as ReproStatus)} style={s.picker}>
-                      {statusOptions.map(opt => (
-                        <Picker.Item key={opt} label={opt} value={opt} />
-                      ))}
-                    </Picker>
-                  </View>
+              <View style={s.pickerContainer}>
+                <Select
+                  value={reproStatus}
+                  onValueChange={(v) => setReproStatus(v as ReproStatus)}
+                  options={statusOptions.map((opt) => ({ label: opt, value: opt }))}
+                />
+              </View>
                 </View>
               </View>
             </View>
@@ -415,13 +428,13 @@ export default function RegisterAnimalScreen() {
               <View style={{ flex: 1, marginLeft: 8 }}>
                 <View style={[s.inputGroup, { marginBottom: 0 }]}>
                   <Text style={s.label}>Status</Text>
-                  <View style={s.pickerContainer}>
-                    <Picker selectedValue={reproStatus} onValueChange={(v) => setReproStatus(v as ReproStatus)} style={s.picker}>
-                      {statusOptions.map(opt => (
-                        <Picker.Item key={opt} label={opt} value={opt} />
-                      ))}
-                    </Picker>
-                  </View>
+              <View style={s.pickerContainer}>
+                <Select
+                  value={reproStatus}
+                  onValueChange={(v) => setReproStatus(v as ReproStatus)}
+                  options={statusOptions.map((opt) => ({ label: opt, value: opt }))}
+                />
+              </View>
                 </View>
               </View>
             </View>
@@ -526,7 +539,7 @@ export default function RegisterAnimalScreen() {
                 <>
                   {/* Optional calf photo */}
                   <View style={s.photoField}>
-                    <TouchableOpacity style={s.photoBox} activeOpacity={0.8} onPress={() => pickImage(setCalfRegImage)}>
+                    <TouchableOpacity style={s.photoBox} activeOpacity={0.8} onPress={() => imagePicker.open(setCalfRegImage)}>
                       {calfRegImage ? (
                         <Image source={{ uri: calfRegImage }} style={s.photoPreview} resizeMode="contain" />
                       ) : (
@@ -564,10 +577,11 @@ export default function RegisterAnimalScreen() {
                   <View style={[s.inputGroup, { marginBottom: 12 }]}>
                     <Text style={s.label}>Calf Sex</Text>
                     <View style={s.pickerContainer}>
-                      <Picker selectedValue={calfRegSex} onValueChange={(v) => setCalfRegSex(v as Sex)} style={s.picker}>
-                        <Picker.Item label="Female" value="Female" />
-                        <Picker.Item label="Male" value="Male" />
-                      </Picker>
+                      <Select
+                        value={calfRegSex}
+                        onValueChange={(v) => setCalfRegSex(v as Sex)}
+                        options={[{ label: 'Female', value: 'Female' }, { label: 'Male', value: 'Male' }]}
+                      />
                     </View>
                   </View>
 
@@ -605,6 +619,8 @@ export default function RegisterAnimalScreen() {
 
         <View style={{ height: 60 }} />
       </ScrollView>
+      </SafeAreaView>
+      {imagePicker.modal}
     </AppBackground>
   );
 }

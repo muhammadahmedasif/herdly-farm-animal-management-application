@@ -1,13 +1,16 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
+  Modal,
+  ScrollView,
   ViewStyle,
   TextStyle,
   StyleProp,
 } from 'react-native';
+import { ChevronDown, Check } from 'lucide-react-native';
 import { Colors, Shadows, Radius } from '../constants/Colors';
 
 // ─── Premium gradient header (dependency-free, layered sheen) ────────────────
@@ -250,6 +253,128 @@ const styles = StyleSheet.create({
     borderColor: Colors.background,
     ...Shadows.brand,
   },
+});
+
+// ─── Reliable cross-platform Select (replaces native Picker) ─────────────────
+// Native Android Pickers render the selected value with the device theme, which
+// on some OEM/Android versions shows white-on-light (invisible) text. This
+// control always shows the selected value as dark navy text on a light field,
+// and lists options in a bottom sheet with guaranteed contrast.
+export function Select({
+  value,
+  onValueChange,
+  options,
+  placeholder = 'Select',
+  style,
+  textStyle,
+  disabled,
+  testID,
+}: {
+  value: string;
+  onValueChange: (value: string) => void;
+  options: { label: string; value: string }[];
+  placeholder?: string;
+  style?: StyleProp<ViewStyle>;
+  textStyle?: StyleProp<TextStyle>;
+  disabled?: boolean;
+  testID?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const selected = options.find(o => o.value === value && o.value !== '');
+
+  return (
+    <>
+      <TouchableOpacity
+        style={[selectStyles.trigger, disabled && selectStyles.triggerDisabled, style]}
+        activeOpacity={0.8}
+        onPress={() => !disabled && setOpen(true)}
+        testID={testID}
+      >
+        <Text style={[selectStyles.value, !selected && selectStyles.placeholder, textStyle]} numberOfLines={1}>
+          {selected ? selected.label : placeholder}
+        </Text>
+        <ChevronDown color={Colors.textSecondary} size={18} strokeWidth={2.5} />
+      </TouchableOpacity>
+
+      <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
+        <TouchableOpacity style={selectStyles.backdrop} activeOpacity={1} onPress={() => setOpen(false)}>
+          <View style={selectStyles.sheet}>
+            <View style={selectStyles.sheetHandle} />
+            <ScrollView keyboardShouldPersistTaps="handled">
+              {options.map((o) => {
+                const active = o.value === value;
+                return (
+                  <TouchableOpacity
+                    key={o.value}
+                    style={[selectStyles.item, active && selectStyles.itemActive]}
+                    onPress={() => { onValueChange(o.value); setOpen(false); }}
+                  >
+                    <Text style={[selectStyles.itemText, active && selectStyles.itemTextActive]} numberOfLines={1}>
+                      {o.label}
+                    </Text>
+                    {active && <Check color={Colors.primary} size={18} strokeWidth={3} />}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+    </>
+  );
+}
+
+const selectStyles = StyleSheet.create({
+  trigger: {
+    height: 56,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  triggerDisabled: { opacity: 0.6, backgroundColor: '#EEF2FF' },
+  value: {
+    fontSize: 16,
+    color: '#1F2937',
+    fontWeight: '700',
+    flex: 1,
+    marginRight: 8,
+  },
+  placeholder: { color: Colors.textMuted, fontWeight: '600' },
+  backdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 39, 66, 0.45)',
+    justifyContent: 'flex-end',
+  },
+  sheet: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 12,
+    paddingBottom: 24,
+    maxHeight: '70%',
+  },
+  sheetHandle: {
+    width: 44, height: 5, borderRadius: 3,
+    backgroundColor: '#CBD5E1',
+    alignSelf: 'center',
+    marginVertical: 10,
+  },
+  item: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 16,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+  },
+  itemActive: { backgroundColor: '#EAF1FB' },
+  itemText: { fontSize: 16, color: '#1F2937', fontWeight: '700', flex: 1, marginRight: 8 },
+  itemTextActive: { color: Colors.primary, fontWeight: '900' },
 });
 
 export { Radius, Shadows };

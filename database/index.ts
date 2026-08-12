@@ -12,4 +12,4 @@ export { inseminationRepository } from './repositories/inseminationRepository';
 export { calvingRepository } from './repositories/calvingRepository';
 export { vaccinationRepository } from './repositories/vaccinationRepository';
 export { dewormingRepository } from './repositories/dewormingRepository';
-export { persistAnimalImage, deleteAnimalImage, isManagedUri } from './imageStorage';
+export { persistAnimalImage, deleteAnimalImage, isManagedUri, resolveAnimalImageUri } from './imageStorage';

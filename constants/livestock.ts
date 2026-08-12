@@ -16,6 +16,7 @@ export const REPRODUCTIVE_STATUS_OPTIONS = [
   'Dry',
   'Newly Calved',
   'Not Applicable',
+  'Calf',
 ] as const;
 export type ReproductiveStatus = typeof REPRODUCTIVE_STATUS_OPTIONS[number];
 
@@ -63,6 +64,16 @@ export const STATUS_COLORS: Record<ReproductiveStatus, 'success' | 'warning' | '
   Dry: 'warning',
   'Newly Calved': 'success',
   'Not Applicable': 'primary',
+  Calf: 'info',
+};
+
+// Age (in months) at which a calf is treated as a normal, matured animal.
+// Species-aware: smaller ruminants mature earlier than cattle/buffalo.
+export const CALF_MATURITY_MONTHS: Record<Species, number> = {
+  Cow: 12,
+  Buffalo: 12,
+  Goat: 6,
+  Sheep: 6,
 };
 
 // Default cattle gestation period in days

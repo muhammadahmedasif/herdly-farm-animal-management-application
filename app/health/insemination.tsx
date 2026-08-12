@@ -1,5 +1,4 @@
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { Picker } from '@react-native-picker/picker';
 import { useRouter } from 'expo-router';
 import { Beaker, Calendar, Check, Lock, Plus, Stethoscope } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
@@ -8,6 +7,7 @@ import {
   Platform,
   SafeAreaView,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   TextInput,
@@ -15,7 +15,7 @@ import {
   View,
 } from 'react-native';
 import Toast from 'react-native-toast-message';
-import { AppBackground } from '../../components/ui';
+import { AppBackground, Select } from '../../components/ui';
 import { Colors } from '../../constants/Colors';
 import { useStore } from '../../store/StoreContext';
 import { Insemination } from '../../types';
@@ -151,7 +151,10 @@ export default function InseminationScreen() {
 
   if (showForm) {
     return (
-      <ScrollView style={s.container} contentContainerStyle={s.content} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+      <AppBackground>
+        <SafeAreaView style={{ flex: 1 }}>
+          <StatusBar backgroundColor={Colors.primary} barStyle="light-content" />
+          <ScrollView style={s.container} contentContainerStyle={s.content} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <View style={s.card}>
           <View style={s.cardHeaderRow}>
             <View style={s.iconBg}><Beaker color="#fff" size={20} /></View>
@@ -161,8 +164,9 @@ export default function InseminationScreen() {
           <View style={s.inputGroup}>
             <Text style={s.label}>Select Animal *</Text>
             <View style={s.pickerContainer}>
-              <Picker
-                selectedValue={animalId}
+              <Select
+                value={animalId}
+                placeholder="-- Select Female Animal --"
                 onValueChange={(id) => {
                   if (!id) { setAnimalId(''); return; }
                   const dup = inseminations.find(i => i.animal_id === id && i.id !== editingId && ACTIVE_INSEM_STATUSES.includes(i.pregnancy_status));
@@ -173,13 +177,8 @@ export default function InseminationScreen() {
                   }
                   setAnimalId(id);
                 }}
-                style={s.picker}
-              >
-                <Picker.Item label="-- Select Female Animal --" value="" />
-                {femaleAnimals.map(a => (
-                  <Picker.Item key={a.id} label={`${a.tag_number} - ${a.name}`} value={a.id} />
-                ))}
-              </Picker>
+                options={femaleAnimals.map(a => ({ label: `${a.tag_number} - ${a.name}`, value: a.id }))}
+              />
             </View>
           </View>
 
@@ -255,12 +254,16 @@ export default function InseminationScreen() {
           <View style={s.inputGroup}>
             <Text style={s.label}>Status *</Text>
             <View style={s.pickerContainer}>
-              <Picker selectedValue={pregnancyStatus} onValueChange={(v) => setPregnancyStatus(v as any)} style={s.picker}>
-                <Picker.Item label="Inseminated" value="Inseminated" />
-                <Picker.Item label="Pregnant" value="Pregnant" />
-                <Picker.Item label="Open" value="Open" />
-                <Picker.Item label="Dry" value="Dry" />
-              </Picker>
+              <Select
+                value={pregnancyStatus}
+                onValueChange={(v) => setPregnancyStatus(v as any)}
+                options={[
+                  { label: 'Inseminated', value: 'Inseminated' },
+                  { label: 'Pregnant', value: 'Pregnant' },
+                  { label: 'Open', value: 'Open' },
+                  { label: 'Dry', value: 'Dry' },
+                ]}
+              />
             </View>
           </View>
 
@@ -296,12 +299,15 @@ export default function InseminationScreen() {
 
         <View style={{ height: 40 }} />
       </ScrollView>
+        </SafeAreaView>
+      </AppBackground>
     );
   }
 
   return (
     <AppBackground>
       <SafeAreaView style={s.container}>
+        <StatusBar backgroundColor={Colors.primary} barStyle="light-content" />
         <FlatList
           contentContainerStyle={s.listContent}
           data={inseminations.filter(i => i.pregnancy_status !== 'Open')}

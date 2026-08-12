@@ -8,19 +8,31 @@
  *
  * Missing source files are handled gracefully (the original URI is kept) so a
  * broken reference never crashes the app — the UI shows a placeholder instead.
+ *
+ * expo-file-system is unsupported on web, so on web the original URIs are kept
+ * as-is and no local copies are made.
  */
+import { Platform } from 'react-native';
 import { Paths, File, Directory } from 'expo-file-system';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 
-const DOC = Paths.document.uri.endsWith('/') ? Paths.document.uri : `${Paths.document.uri}/`;
-const IMAGE_DIR = `${DOC}animal-images/`;
+const IS_WEB = Platform.OS === 'web';
+
+let imageDir: string | null = null;
+function managedDir(): string {
+  if (!imageDir) {
+    const doc = Paths.document.uri;
+    imageDir = `${doc.endsWith('/') ? doc : `${doc}/`}animal-images/`;
+  }
+  return imageDir;
+}
 
 let dirReady: Promise<void> | null = null;
 
 function ensureDir(): Promise<void> {
   if (!dirReady) {
     dirReady = (async () => {
-      const dir = new Directory(IMAGE_DIR);
+      const dir = new Directory(managedDir());
       dir.create({ intermediates: true, idempotent: true });
     })().catch(() => {});
   }
@@ -29,7 +41,7 @@ function ensureDir(): Promise<void> {
 
 /** True when the URI already lives inside our managed directory. */
 export function isManagedUri(uri: string | null | undefined): boolean {
-  return !!uri && uri.startsWith(IMAGE_DIR);
+  return !IS_WEB && !!uri && uri.startsWith(managedDir());
 }
 
 async function fileExists(uri: string): Promise<boolean> {
@@ -47,6 +59,7 @@ async function fileExists(uri: string): Promise<boolean> {
  * If `sourceUri` is empty -> '' (callers should delete the old file).
  * If already managed -> returned unchanged.
  * If the source is missing/broken -> the original URI is returned as-is.
+ * On web -> the original URI is returned unchanged (no local filesystem).
  */
 export async function persistAnimalImage(
   id: string,
@@ -54,13 +67,17 @@ export async function persistAnimalImage(
 ): Promise<string> {
   if (!sourceUri) return '';
 
+  if (IS_WEB) {
+    return sourceUri;
+  }
+
   if (isManagedUri(sourceUri)) {
     return sourceUri;
   }
 
   await ensureDir();
 
-  const dest = new File(IMAGE_DIR, `${id}.jpg`);
+  const dest = new File(managedDir(), `${id}.jpg`);
 
   if (await fileExists(dest.uri)) {
     try { dest.delete(); } catch { /* ignore */ }
@@ -84,8 +101,27 @@ export async function persistAnimalImage(
 
 /** Remove a managed image file. Failures are ignored (idempotent cleanup). */
 export async function deleteAnimalImage(id: string): Promise<void> {
-  const dest = new File(IMAGE_DIR, `${id}.jpg`);
+  if (IS_WEB) return;
+  const dest = new File(managedDir(), `${id}.jpg`);
   if (dest.exists) {
     try { dest.delete(); } catch { /* ignore */ }
   }
+}
+
+/**
+ * Resolves a stored image URI. If it's a managed local image, we rewrite the path
+ * dynamically to the current app document directory since the sandbox UUID changes
+ * on every new build/install.
+ */
+export function resolveAnimalImageUri(uri: string | null | undefined): string {
+  if (!uri) return '';
+  if (IS_WEB) return uri;
+  
+  // If it contains '/animal-images/', extract the filename and point to the current managed directory
+  const match = uri.match(/\/animal-images\/([^/]+)$/);
+  if (match) {
+    const filename = match[1];
+    return `${managedDir()}${filename}`;
+  }
+  return uri;
 }

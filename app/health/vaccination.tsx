@@ -1,5 +1,4 @@
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { Picker } from '@react-native-picker/picker';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
@@ -7,6 +6,7 @@ import {
   Platform,
   SafeAreaView,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   TextInput,
@@ -14,7 +14,7 @@ import {
   View,
 } from 'react-native';
 import Toast from 'react-native-toast-message';
-import { AppBackground } from '../../components/ui';
+import { AppBackground, Select } from '../../components/ui';
 import { Colors } from '../../constants/Colors';
 import { useStore } from '../../store/StoreContext';
 import { Vaccination } from '../../types';
@@ -76,19 +76,22 @@ export default function VaccinationScreen() {
 
   if (showForm) {
     return (
-      <ScrollView style={s.container} contentContainerStyle={s.content}>
+      <AppBackground>
+        <SafeAreaView style={{ flex: 1 }}>
+          <StatusBar backgroundColor={Colors.primary} barStyle="light-content" />
+          <ScrollView style={s.container} contentContainerStyle={s.content}>
         <View style={s.card}>
           <Text style={s.sectionHeader}>New Vaccination</Text>
 
           <View style={s.inputGroup}>
             <Text style={s.label}>Select Animal *</Text>
             <View style={s.pickerWrapper}>
-              <Picker selectedValue={animalId} onValueChange={setAnimalId} style={s.picker}>
-                <Picker.Item label="-- Select Animal --" value="" />
-                {animals.map(a => (
-                  <Picker.Item key={a.id} label={`${a.tag_number} - ${a.name}`} value={a.id} />
-                ))}
-              </Picker>
+              <Select
+                value={animalId}
+                onValueChange={setAnimalId}
+                placeholder="-- Select Animal --"
+                options={animals.map(a => ({ label: `${a.tag_number} - ${a.name}`, value: a.id }))}
+              />
             </View>
           </View>
 
@@ -191,12 +194,15 @@ export default function VaccinationScreen() {
 
         <View style={{ height: 40 }} />
       </ScrollView>
+        </SafeAreaView>
+      </AppBackground>
     );
   }
 
   return (
     <AppBackground>
       <SafeAreaView style={s.container}>
+        <StatusBar backgroundColor={Colors.primary} barStyle="light-content" />
         <FlatList
           contentContainerStyle={s.listContent}
           data={vaccinations}

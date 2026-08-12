@@ -1,6 +1,4 @@
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { Picker } from '@react-native-picker/picker';
-import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { Camera, X } from 'lucide-react-native';
 import React, { useEffect, useRef, useState } from 'react';
@@ -11,6 +9,7 @@ import {
   Platform,
   SafeAreaView,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   TextInput,
@@ -18,17 +17,20 @@ import {
   View,
 } from 'react-native';
 import Toast from 'react-native-toast-message';
-import { AppBackground } from '../../components/ui';
+import { AppBackground, Select } from '../../components/ui';
+import { useImagePicker } from '../../components/PhotoPicker';
 import { Colors } from '../../constants/Colors';
 import { useStore } from '../../store/StoreContext';
 import { Calving, Sex } from '../../types';
 import { uuid } from '../../utils/uuid';
+import { persistAnimalImage, resolveAnimalImageUri } from '../../database/imageStorage';
 import { addDays, getGestationDays, parseDate, toDateString } from '../../utils/date';
+import { getEffectiveReproStatus } from '../../utils/animal';
 import { incrementLactation } from '../../utils/lactation';
 
 export default function CalvingScreen() {
   const router = useRouter();
-  const { animals, calvings, addCalving, updateCalving, deleteCalving, inseminations, recordCalving, updateAnimal } = useStore();
+  const { animals, calvings, addCalving, updateCalving, deleteCalving, inseminations, recordCalving, updateAnimal, addAnimal } = useStore();
 
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -46,21 +48,27 @@ export default function CalvingScreen() {
 
   // Optional calf photo (kept as a local uri; not uploaded to a server)
   const [calfImage, setCalfImage] = useState<string | null>(null);
+  const imagePicker = useImagePicker();
 
   const pickImage = async (setter: (uri: string | null) => void) => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.7,
-    });
-    if (!result.canceled && result.assets && result.assets.length > 0) {
-      setter(result.assets[0].uri);
-    }
+    imagePicker.open(setter);
   };
 
   // Only pregnant animals (not just insemination records) can calve
   const pregnantAnimals = animals.filter(a => a.repro_status === 'Pregnant');
+
+  // Calves: animals whose effective reproductive status is still "Calf"
+  const calves = animals.filter(a => getEffectiveReproStatus(a) === 'Calf');
+
+  const calfAgeLabel = (dob?: string) => {
+    if (!dob) return '';
+    const d = parseDate(dob);
+    if (isNaN(d.getTime())) return '';
+    const days = Math.floor((Date.now() - d.getTime()) / 86400000);
+    if (days < 30) return `${days} day${days === 1 ? '' : 's'} old`;
+    const months = Math.floor(days / 30);
+    return `${months} month${months === 1 ? '' : 's'} old`;
+  };
 
   const onDateChange = (event: any, selectedDate?: Date) => {
     setShowDatePicker(Platform.OS === 'ios');
@@ -92,11 +100,23 @@ export default function CalvingScreen() {
     const mother = animals.find(a => a.id === animalId);
     const matchingIns = inseminations.find(i => i.animal_id === animalId && i.pregnancy_status === 'Pregnant');
 
-    if (calfTag && calfTag.trim() !== '' && !editingId) {
+    const hasCalfInfo = (calfName && calfName.trim() !== '') || (calfWeight && calfWeight.trim() !== '') || calfImage;
+    if (hasCalfInfo && (!calfTag || !calfTag.trim())) {
+      Toast.show({ type: 'error', text1: 'Calf Tag Required', text2: 'Please enter a Tag Number to register the calf as an animal.' });
+      return;
+    }
+
+    if (calfTag && calfTag.trim() !== '') {
       const duplicate = animals.find(a => a.tag_number.trim().toLowerCase() === calfTag.trim().toLowerCase());
-      if (duplicate) {
-        Toast.show({ type: 'error', text1: 'Duplicate Tag', text2: `Tag "${calfTag}" is already in use by another animal.` });
-        return;
+      if (duplicate && (!editingId || (editingId && calves.findIndex(c => c.tag_number.trim().toLowerCase() === calfTag.trim().toLowerCase()) === -1))) {
+        // Wait, if editing, we only block if the duplicate animal is NOT the linked calf of this record.
+        // Let's get the original record being edited.
+        const originalRecord = calvings.find(c => c.id === editingId);
+        const originalCalfTag = originalRecord?.calf_tag || '';
+        if (!editingId || originalCalfTag.trim().toLowerCase() !== calfTag.trim().toLowerCase()) {
+          Toast.show({ type: 'error', text1: 'Duplicate Tag', text2: `Tag "${calfTag}" is already in use by another animal.` });
+          return;
+        }
       }
     }
 
@@ -105,8 +125,8 @@ export default function CalvingScreen() {
       animal_id: animalId,
       insemination_id: matchingIns?.id || '',
       calving_date: calvingDate ? toDateString(calvingDate) : '',
-      calf_tag: calfTag,
-      calf_name: calfName,
+      calf_tag: calfTag.trim(),
+      calf_name: calfName.trim(),
       calf_sex: calfSex,
       calf_weight_kg: parseFloat(calfWeight) || 0,
       complications,
@@ -115,8 +135,9 @@ export default function CalvingScreen() {
     };
 
     if (calfTag && calfTag.trim() !== '' && !editingId) {
+      const calfId = uuid();
       const newCalf = {
-        id: uuid(),
+        id: calfId,
         tag_number: calfTag.trim(),
         name: calfName.trim() || `Calf of ${mother?.tag_number || 'Unknown'}`,
         species: mother?.species || 'Cow',
@@ -127,15 +148,15 @@ export default function CalvingScreen() {
         color: '',
         repro_status: 'Calf' as any,
         created_at: new Date().toISOString(),
-        image_url: calfImage || '',
+        image_url: calfImage ?? '',
         notes: `Mother Tag: ${mother?.tag_number || 'Unknown'}`,
       };
       const motherUpdate = mother
         ? { ...mother, repro_status: 'Newly Calved' as any, lactation_number: incrementLactation(mother.lactation_number) }
         : undefined;
-      // Atomic: calving + calf animal + mother update in one SQLite transaction.
       await recordCalving(record, newCalf, motherUpdate);
       Toast.show({ type: 'success', text1: 'Saved', text2: 'Calving record added.' });
+
     } else if (!editingId) {
       const motherUpdate = mother
         ? { ...mother, repro_status: 'Newly Calved' as any, lactation_number: incrementLactation(mother.lactation_number) }
@@ -144,11 +165,39 @@ export default function CalvingScreen() {
       Toast.show({ type: 'success', text1: 'Saved', text2: 'Calving record added.' });
     } else {
       await updateCalving(record);
-      // Keep the linked calf's photo in sync when editing
       if (calfTag && calfTag.trim() !== '') {
         const existingCalf = animals.find(a => a.tag_number.trim().toLowerCase() === calfTag.trim().toLowerCase());
+        const calfImageUrl = calfImage ? await persistAnimalImage(existingCalf ? existingCalf.id : uuid(), calfImage) : '';
         if (existingCalf) {
-          await updateAnimal({ ...existingCalf, image_url: calfImage || existingCalf.image_url });
+          await updateAnimal({
+            ...existingCalf,
+            tag_number: calfTag.trim(),
+            name: calfName.trim() || `Calf of ${mother?.tag_number || 'Unknown'}`,
+            sex: calfSex,
+            image_url: calfImageUrl || existingCalf.image_url,
+            date_of_birth: calvingDate ? toDateString(calvingDate) : existingCalf.date_of_birth,
+          });
+        } else {
+          // If the user previously saved a calving record with no tag, they can now add one via Edit.
+          // Create the calf animal now.
+          const calfId = uuid();
+          const finalCalfImageUrl = calfImage ? await persistAnimalImage(calfId, calfImage) : '';
+          const newCalf = {
+            id: calfId,
+            tag_number: calfTag.trim(),
+            name: calfName.trim() || `Calf of ${mother?.tag_number || 'Unknown'}`,
+            species: mother?.species || 'Cow',
+            breed: mother?.breed || 'Unknown',
+            sex: calfSex,
+            date_of_birth: calvingDate ? toDateString(calvingDate) : toDateString(new Date()),
+            dob_is_estimated: false,
+            color: '',
+            repro_status: 'Calf' as any,
+            created_at: new Date().toISOString(),
+            image_url: finalCalfImageUrl,
+            notes: `Mother Tag: ${mother?.tag_number || 'Unknown'}`,
+          };
+          await addAnimal(newCalf);
         }
       }
       Toast.show({ type: 'success', text1: 'Updated', text2: 'Calving record updated.' });
@@ -204,31 +253,31 @@ export default function CalvingScreen() {
   if (showForm) {
     return (
       <AppBackground>
-        <ScrollView style={s.container} contentContainerStyle={s.content}>
+        <SafeAreaView style={{ flex: 1 }}>
+          <StatusBar backgroundColor={Colors.primary} barStyle="light-content" />
+          <ScrollView style={s.container} contentContainerStyle={s.content}>
           <View style={s.card}>
             <Text style={s.sectionHeader}>New Calving Record</Text>
 
-            <View style={s.inputGroup}>
-              <Text style={s.label}>Select Pregnant Mother (Optional)</Text>
-              <View style={s.pickerWrapper}>
-                <Picker
-                  selectedValue={animalId}
-                  onValueChange={(id) => {
-                    setAnimalId(id);
-                    setCalvingDate(null);
-                  }}
-                  style={s.picker}
-                >
-                  <Picker.Item label="-- No Mother / Unknown --" value="" />
-                  {pregnantAnimals.map(a => (
-                    <Picker.Item key={a.id} label={`${a.tag_number} - ${a.name || 'Unknown'}`} value={a.id} />
-                  ))}
-                </Picker>
+              <View style={s.inputGroup}>
+                <Text style={s.label}>Select Pregnant Mother (Optional)</Text>
+                <View style={s.pickerWrapper}>
+                  <Select
+                    value={animalId}
+                    onValueChange={(v) => {
+                      setAnimalId(v);
+                      setCalvingDate(null);
+                    }}
+                    options={[
+                      { label: '-- No Mother / Unknown --', value: '' },
+                      ...pregnantAnimals.map(a => ({ label: `${a.tag_number} - ${a.name || 'Unknown'}`, value: a.id })),
+                    ]}
+                  />
+                </View>
+                {pregnantAnimals.length === 0 && (
+                  <Text style={s.emptyHint}>No pregnant animals. Mark a female as Pregnant (via Insemination or Register) first.</Text>
+                )}
               </View>
-              {pregnantAnimals.length === 0 && (
-                <Text style={s.emptyHint}>No pregnant animals. Mark a female as Pregnant (via Insemination or Register) first.</Text>
-              )}
-            </View>
 
             <View style={s.row}>
               <View style={[s.inputGroup, { flex: 1, paddingRight: 8 }]}>
@@ -273,10 +322,11 @@ export default function CalvingScreen() {
               <View style={[s.inputGroup, { flex: 1, paddingLeft: 8 }]}>
                 <Text style={s.label}>Calf Sex</Text>
                 <View style={s.pickerWrapper}>
-                  <Picker selectedValue={calfSex} onValueChange={(v) => setCalfSex(v as Sex)} style={s.picker}>
-                    <Picker.Item label="Female" value="Female" />
-                    <Picker.Item label="Male" value="Male" />
-                  </Picker>
+                  <Select
+                    value={calfSex}
+                    onValueChange={(v) => setCalfSex(v as Sex)}
+                    options={[{ label: 'Female', value: 'Female' }, { label: 'Male', value: 'Male' }]}
+                  />
                 </View>
               </View>
             </View>
@@ -294,14 +344,14 @@ export default function CalvingScreen() {
 
             <View style={s.photoField}>
               <TouchableOpacity style={s.photoBox} activeOpacity={0.8} onPress={() => pickImage(setCalfImage)}>
-                {calfImage ? (
-                  <Image source={{ uri: calfImage }} style={s.photoPreview} resizeMode="contain" />
+                {resolveAnimalImageUri(calfImage) ? (
+                  <Image source={{ uri: resolveAnimalImageUri(calfImage) }} style={s.photoPreview} resizeMode="contain" />
                 ) : (
                   <View style={s.photoPlaceholder}>
                     <Camera color={Colors.primary} size={26} />
                   </View>
                 )}
-                {calfImage ? (
+                {resolveAnimalImageUri(calfImage) ? (
                   <TouchableOpacity style={s.photoRemove} activeOpacity={0.7} onPress={() => setCalfImage(null)}>
                     <X color="#fff" size={14} />
                   </TouchableOpacity>
@@ -345,6 +395,8 @@ export default function CalvingScreen() {
 
           <View style={{ height: 40 }} />
         </ScrollView>
+        </SafeAreaView>
+        {imagePicker.modal}
       </AppBackground>
     );
   }
@@ -352,62 +404,66 @@ export default function CalvingScreen() {
   return (
     <AppBackground>
       <SafeAreaView style={s.container}>
-        <FlatList
-          contentContainerStyle={s.listContent}
-          data={calvings}
-          keyExtractor={i => i.id}
-          ListEmptyComponent={
+        <StatusBar backgroundColor={Colors.primary} barStyle="light-content" />
+        <ScrollView contentContainerStyle={s.listContent} showsVerticalScrollIndicator={false}>
+
+
+          {calvings.length === 0 ? (
             <View style={s.empty}>
               <Text style={s.emptyText}>No records found.</Text>
             </View>
-          }
-          renderItem={({ item }) => {
-            const animal = animals.find(a => a.id === item.animal_id);
-            return (
-              <TouchableOpacity
-                style={s.listCard}
-                activeOpacity={0.9}
-                onPress={() => {
-                  setEditingId(item.id);
-                  suppressAutoPick.current = true;
-                  setAnimalId(item.animal_id || '');
-                  const d = parseDate(item.calving_date);
-                  setCalvingDate(isNaN(d.getTime()) ? null : d);
-                  setCalfTag(item.calf_tag || '');
-                  setCalfName(item.calf_name || '');
-                  setCalfSex(item.calf_sex || 'Female');
-                  setCalfWeight(item.calf_weight_kg ? item.calf_weight_kg.toString() : '');
-                  setComplications(item.complications || '');
-                  setNotes(item.notes || '');
-                  const linkedCalf = animals.find(a => a.tag_number.trim().toLowerCase() === (item.calf_tag || '').trim().toLowerCase());
-                  setCalfImage(linkedCalf?.image_url || null);
-                  setShowForm(true);
-                }}
-              >
-                <View style={s.listCardHead}>
-                  <Text style={s.listCardTitle}>Mother: {animal?.tag_number || 'N/A'}</Text>
-                  <Text style={s.listCardStatus}>{item.calving_date || 'N/A'}</Text>
-                </View>
-                <View style={s.listCardBody}>
-                  <View style={s.gridRow}>
-                    <Text style={s.gridLabel}>Calf:</Text>
-                    <Text style={s.gridValue}>{(item.calf_name || item.calf_tag || 'N/A')} ({item.calf_sex || 'N/A'})</Text>
+          ) : (
+            calvings.map(item => {
+              const animal = animals.find(a => a.id === item.animal_id);
+              return (
+                <TouchableOpacity
+                  key={item.id}
+                  style={s.listCard}
+                  activeOpacity={0.9}
+                  onPress={() => {
+                    setEditingId(item.id);
+                    suppressAutoPick.current = true;
+                    setAnimalId(item.animal_id || '');
+                    const d = parseDate(item.calving_date);
+                    setCalvingDate(isNaN(d.getTime()) ? null : d);
+                    setCalfTag(item.calf_tag || '');
+                    setCalfName(item.calf_name || '');
+                    setCalfSex(item.calf_sex || 'Female');
+                    setCalfWeight(item.calf_weight_kg ? item.calf_weight_kg.toString() : '');
+                    setComplications(item.complications || '');
+                    setNotes(item.notes || '');
+                    const linkedCalf = animals.find(a => a.tag_number.trim().toLowerCase() === (item.calf_tag || '').trim().toLowerCase());
+                    setCalfImage(linkedCalf?.image_url || null);
+                    setShowForm(true);
+                  }}
+                >
+                  <View style={s.listCardHead}>
+                    <Text style={s.listCardTitle}>Mother: {animal?.tag_number || 'N/A'}</Text>
+                    <Text style={s.listCardStatus}>{item.calving_date || 'N/A'}</Text>
                   </View>
-                  <View style={s.gridRow}>
-                    <Text style={s.gridLabel}>Weight:</Text>
-                    <Text style={s.gridValue}>{item.calf_weight_kg ? `${item.calf_weight_kg} kg` : 'N/A'}</Text>
-                  </View>
-                  {item.complications ? (
+                  <View style={s.listCardBody}>
                     <View style={s.gridRow}>
-                      <Text style={s.gridLabel}>Complications:</Text>
-                      <Text style={[s.gridValue, { color: Colors.danger }]}>{item.complications}</Text>
+                      <Text style={s.gridLabel}>Calf:</Text>
+                      <Text style={s.gridValue}>{(item.calf_name || item.calf_tag || 'N/A')} ({item.calf_sex || 'N/A'})</Text>
                     </View>
-                  ) : null}
-                </View>
-              </TouchableOpacity>
-            );
-          }}
-        />
+                    <View style={s.gridRow}>
+                      <Text style={s.gridLabel}>Weight:</Text>
+                      <Text style={s.gridValue}>{item.calf_weight_kg ? `${item.calf_weight_kg} kg` : 'N/A'}</Text>
+                    </View>
+                    {item.complications ? (
+                      <View style={s.gridRow}>
+                        <Text style={s.gridLabel}>Complications:</Text>
+                        <Text style={[s.gridValue, { color: Colors.danger }]}>{item.complications}</Text>
+                      </View>
+                    ) : null}
+                  </View>
+                </TouchableOpacity>
+              );
+            })
+          )}
+
+          <View style={{ height: 80 }} />
+        </ScrollView>
         <TouchableOpacity
           style={s.fab}
           onPress={() => {
@@ -428,6 +484,7 @@ export default function CalvingScreen() {
           <Text style={s.fabText}>+</Text>
         </TouchableOpacity>
       </SafeAreaView>
+      {imagePicker.modal}
     </AppBackground>
   );
 }
@@ -436,6 +493,7 @@ const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: 'transparent' },
   content: { padding: 16 },
   listContent: { padding: 16, paddingBottom: 100 },
+  sectionTitle: { fontSize: 18, fontWeight: '800', color: Colors.primary, marginBottom: 12, marginTop: 4 },
 
   card: {
     backgroundColor: '#fff', borderRadius: 20, padding: 20, marginBottom: 16,

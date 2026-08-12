@@ -57,7 +57,15 @@ function reducer(state: StoreState, action: Action): StoreState {
     case 'DONE_LOADING': return { ...state, loading: false };
     case 'ADD_ANIMAL':         return { ...state, animals: [...state.animals, action.payload] };
     case 'UPDATE_ANIMAL':      return { ...state, animals: state.animals.map(a => a.id === action.payload.id ? action.payload : a) };
-    case 'DELETE_ANIMAL':      return { ...state, animals: state.animals.filter(a => a.id !== action.payload) };
+    case 'DELETE_ANIMAL':
+      return {
+        ...state,
+        animals: state.animals.filter(a => a.id !== action.payload),
+        vaccinations: state.vaccinations.filter(v => v.animal_id !== action.payload),
+        dewormings: state.dewormings.filter(d => d.animal_id !== action.payload),
+        inseminations: state.inseminations.map(i => i.animal_id === action.payload ? { ...i, animal_id: '' } : i),
+        calvings: state.calvings.map(c => c.animal_id === action.payload ? { ...c, animal_id: '' } : c),
+      };
     case 'ADD_INSEMINATION':   return { ...state, inseminations: [...state.inseminations, action.payload] };
     case 'UPDATE_INSEMINATION':return { ...state, inseminations: state.inseminations.map(i => i.id === action.payload.id ? action.payload : i) };
     case 'ADD_CALVING':        return { ...state, calvings: [...state.calvings, action.payload] };

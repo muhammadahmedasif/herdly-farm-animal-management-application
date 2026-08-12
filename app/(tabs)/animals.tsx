@@ -18,6 +18,8 @@ import { useStore } from '../../store/StoreContext';
 import { GradientHeader, AppBackground } from '../../components/ui';
 import { formatAge, formatDob } from '../../utils/date';
 import { useNow } from '../../utils/useNow';
+import { getEffectiveReproStatus } from '../../utils/animal';
+import { resolveAnimalImageUri } from '../../database';
 
 const FILTERS = ['All', 'Pregnant', 'Inseminated', 'Open', 'Dry', 'Breeding', 'Non-Breeding', 'Calf'];
 
@@ -42,7 +44,10 @@ export default function AnimalsScreen() {
   const activeFilter = params.filter || 'All';
 
   const filtered = animals.filter((a) => {
-    const matchFilter = activeFilter === 'All' || a.repro_status === activeFilter;
+    // Resolve the lifecycle-aware status (calves that have matured are treated
+    // as adults for filtering purposes without mutating the stored value).
+    const effectiveStatus = getEffectiveReproStatus(a);
+    const matchFilter = activeFilter === 'All' || effectiveStatus === activeFilter;
     const matchQuery = !query ||
       a.tag_number.toLowerCase().includes(query.toLowerCase()) ||
       a.name.toLowerCase().includes(query.toLowerCase()) ||
@@ -109,7 +114,9 @@ export default function AnimalsScreen() {
           </View>
         }
         renderItem={({ item }) => {
-          const cfg = STATUS_CONFIG[item.repro_status] || { color: '#6B7280', bg: '#F3F4F6' };
+          // Use effective status for display so matured calves appear correctly.
+          const effectiveStatus = getEffectiveReproStatus(item);
+          const cfg = STATUS_CONFIG[effectiveStatus] || { color: '#6B7280', bg: '#F3F4F6' };
 
           const ageStr = formatAge(item.date_of_birth, now);
           const formattedDob = formatDob(item.date_of_birth, item.dob_is_estimated);
@@ -120,12 +127,14 @@ export default function AnimalsScreen() {
               activeOpacity={0.9}
               onPress={() => router.push({ pathname: '/animals/[id]', params: { id: item.id } } as any)}
             >
-              {/* Card Header (large identifying photo) */}
+              {/* Card Header — square photo on left, name + tag centred in blue area */}
               <View style={s.cardHead}>
+                {/* Square photo / emoji panel */}
                 <AnimalPhoto uri={item.image_url} species={item.species} />
-                <View style={s.cardHeadOverlay} />
-                <View style={s.cardHeadText}>
-                  <Text style={s.cardHeadLabel}>Cattle Name</Text>
+
+                {/* Name + tag centred in remaining space */}
+                <View style={s.cardHeadInfo}>
+                  <Text style={s.cardHeadLabel}>CATTLE NAME</Text>
                   <Text style={s.cardHeadValue} numberOfLines={1}>{item.name}</Text>
                   <View style={s.cardHeadTag}>
                     <Text style={s.cardHeadTagText}>{item.tag_number}</Text>
@@ -144,7 +153,7 @@ export default function AnimalsScreen() {
               {/* Footer Status Pill */}
               <View style={[s.cardFoot, { backgroundColor: cfg.bg }]}>
                 <Circle color={cfg.color} fill={cfg.color} size={10} />
-                <Text style={[s.footText, { color: cfg.color }]}>{item.repro_status}</Text>
+                <Text style={[s.footText, { color: cfg.color }]}>{effectiveStatus}</Text>
                 <ChevronRight color={cfg.color} size={20} strokeWidth={3} style={{ marginLeft: 'auto' }} />
               </View>
             </TouchableOpacity>
@@ -175,17 +184,25 @@ function Row({ label, value }: { label: string; value: string; }) {
   );
 }
 
-/** Animal header image with graceful fallback to a species emoji placeholder. */
+/** Square photo panel on the left of the blue header. Falls back to a centred species emoji. */
 function AnimalPhoto({ uri, species }: { uri?: string; species: Species; }) {
   const [err, setErr] = useState(false);
-  if (!uri || err) {
+  const resolved = resolveAnimalImageUri(uri);
+  if (!resolved || err) {
     return (
-      <View style={[s.cardHeadImage, s.cardHeadImagePlaceholder]}>
+      <View style={[s.cardHeadPhoto, s.cardHeadPhotoPlaceholder]}>
         <Text style={s.cardHeadEmoji}>{SPECIES_EMOJI[species] || '🐄'}</Text>
       </View>
     );
   }
-  return <Image source={{ uri }} style={s.cardHeadImage} onError={() => setErr(true)} />;
+  return (
+    <Image
+      source={{ uri: resolved }}
+      style={s.cardHeadPhoto}
+      resizeMode="cover"
+      onError={() => setErr(true)}
+    />
+  );
 }
 
 const s = StyleSheet.create({
@@ -234,43 +251,60 @@ const s = StyleSheet.create({
     overflow: 'hidden',
     ...Shadows.lg,
   },
+
+  // ── Card header: navy blue row with square photo on the left ──────────────
   cardHead: {
-    position: 'relative',
-    height: 150,
+    flexDirection: 'row',
     backgroundColor: Colors.primary,
-    justifyContent: 'flex-end',
+    height: 120,
+    alignItems: 'stretch',
   },
-  cardHeadImage: {
-    position: 'absolute',
-    top: 0, left: 0, right: 0, bottom: 0,
-    width: '100%', height: 150,
-    backgroundColor: Colors.primary,
+  // Square photo / emoji panel — same width as the header height
+  cardHeadPhoto: {
+    width: 120,
+    height: 120,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRightWidth: 2,
+    borderRightColor: 'rgba(255,255,255,0.12)',
   },
-  cardHeadImagePlaceholder: {
-    alignItems: 'center', justifyContent: 'center',
+  cardHeadPhotoPlaceholder: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  cardHeadEmoji: { fontSize: 56 },
-  cardHeadOverlay: {
-    position: 'absolute',
-    top: 0, left: 0, right: 0, bottom: 0,
-    backgroundColor: 'rgba(15, 39, 66, 0.42)',
+  cardHeadEmoji: { fontSize: 52 },
+
+  // Text area — centred vertically in the remaining blue space
+  cardHeadInfo: {
+    flex: 1,
+    paddingHorizontal: 18,
+    justifyContent: 'center',
+    alignItems: 'flex-start',
   },
-  cardHeadText: {
-    paddingHorizontal: 20,
-    paddingBottom: 16,
-    paddingTop: 24,
+  cardHeadLabel: {
+    fontSize: 10,
+    color: 'rgba(255,255,255,0.7)',
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    marginBottom: 4,
+  },
+  cardHeadValue: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: '#fff',
+    letterSpacing: 0.2,
   },
   cardHeadTag: {
-    alignSelf: 'flex-start',
     marginTop: 8,
-    backgroundColor: 'rgba(255,255,255,0.22)',
-    paddingHorizontal: 12, paddingVertical: 4,
-    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 10,
+    alignSelf: 'flex-start',
   },
-  cardHeadTagText: { fontSize: 15, fontWeight: '900', color: '#fff' },
-  cardHeadLabel: { fontSize: 11, color: 'rgba(255,255,255,0.85)', fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
-  cardHeadValue: { fontSize: 22, fontWeight: '900', color: '#fff', marginTop: 2 },
+  cardHeadTagText: { fontSize: 14, fontWeight: '900', color: '#fff' },
 
+  // ── Card body (white details grid) ───────────────────────────────────────
   cardBody: {
     flexDirection: 'row', flexWrap: 'wrap', padding: 20, gap: 0,
   },

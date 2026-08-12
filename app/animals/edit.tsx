@@ -1,23 +1,25 @@
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { Picker } from '@react-native-picker/picker';
-import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Calendar, Camera, Check, Hash, Info, Tag, User, Trash2, X } from 'lucide-react-native';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
+  Alert,
+  Image,
   Platform,
+  SafeAreaView,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
-  Alert,
-  Image,
 } from 'react-native';
 import Toast from 'react-native-toast-message';
+import { AppBackground, Select } from '../../components/ui';
+import { useImagePicker } from '../../components/PhotoPicker';
 import { Colors } from '../../constants/Colors';
-import { AppBackground } from '../../components/ui';
+import { persistAnimalImage } from '../../database/imageStorage';
 import { useStore } from '../../store/StoreContext';
 import { Animal, ReproStatus, Sex, Species } from '../../types';
 import { addDays, calculateAge, dateFromAge, formatAge, getGestationDays, parseDate, toDateString } from '../../utils/date';
@@ -51,6 +53,7 @@ export default function EditAnimalScreen() {
   
   const [inseminationDate, setInseminationDate] = useState(new Date());
   const [showInsemPicker, setShowInsemPicker] = useState(false);
+  const imagePicker = useImagePicker();
 
   // Load existing data
   useEffect(() => {
@@ -76,15 +79,7 @@ export default function EditAnimalScreen() {
   }, [animal]);
 
   const pickImage = async (setter: (uri: string | null) => void) => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.7,
-    });
-    if (!result.canceled && result.assets && result.assets.length > 0) {
-      setter(result.assets[0].uri);
-    }
+    imagePicker.open(setter);
   };
 
   // Dynamic Status Options
@@ -152,7 +147,7 @@ export default function EditAnimalScreen() {
       repro_status: reproStatus,
       lactation_number: sex === 'Female' ? lactationNo : undefined,
       last_insemination_date: sex === 'Female' && ['Pregnant', 'Inseminated'].includes(reproStatus) ? toDateString(inseminationDate) : undefined,
-      image_url: image || '',
+      image_url: await persistAnimalImage(animal.id, image),
     };
 
     await updateAnimal(updatedAnimal);
@@ -175,7 +170,9 @@ export default function EditAnimalScreen() {
 
   return (
     <AppBackground>
-    <ScrollView style={s.container} contentContainerStyle={s.content} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+    <SafeAreaView style={{ flex: 1 }}>
+      <StatusBar backgroundColor={Colors.primary} barStyle="light-content" />
+      <ScrollView style={s.container} contentContainerStyle={s.content} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
       {/* Basic Info */}
       <View style={s.card}>
@@ -225,14 +222,18 @@ export default function EditAnimalScreen() {
         <View style={s.row}>
           <View style={[s.inputGroup, { flex: 1, paddingRight: 6 }]}>
             <Text style={s.label}>Species</Text>
-            <View style={s.pickerContainer}>
-              <Picker selectedValue={species} onValueChange={(v) => setSpecies(v as Species)} style={s.picker}>
-                <Picker.Item label="Cow" value="Cow" />
-                <Picker.Item label="Buffalo" value="Buffalo" />
-                <Picker.Item label="Goat" value="Goat" />
-                <Picker.Item label="Sheep" value="Sheep" />
-              </Picker>
-            </View>
+          <View style={s.pickerContainer}>
+            <Select
+              value={species}
+              onValueChange={(v) => setSpecies(v as Species)}
+              options={[
+                { label: 'Cow', value: 'Cow' },
+                { label: 'Buffalo', value: 'Buffalo' },
+                { label: 'Goat', value: 'Goat' },
+                { label: 'Sheep', value: 'Sheep' },
+              ]}
+            />
+          </View>
           </View>
 
           <View style={[s.inputGroup, { flex: 1, paddingLeft: 6 }]}>
@@ -254,12 +255,13 @@ export default function EditAnimalScreen() {
         <View style={s.row}>
           <View style={[s.inputGroup, { flex: 1, paddingRight: 6 }]}>
             <Text style={s.label}>Sex</Text>
-            <View style={s.pickerContainer}>
-              <Picker selectedValue={sex} onValueChange={(v) => setSex(v as Sex)} style={s.picker}>
-                <Picker.Item label="Female" value="Female" />
-                <Picker.Item label="Male" value="Male" />
-              </Picker>
-            </View>
+          <View style={s.pickerContainer}>
+            <Select
+              value={sex}
+              onValueChange={(v) => setSex(v as Sex)}
+              options={[{ label: 'Female', value: 'Female' }, { label: 'Male', value: 'Male' }]}
+            />
+          </View>
           </View>
 
           <View style={[s.inputGroup, { flex: 1, paddingLeft: 6 }]}>
@@ -318,11 +320,11 @@ export default function EditAnimalScreen() {
               <View style={[s.inputGroup, { marginBottom: 0 }]}>
                 <Text style={s.label}>Status</Text>
                 <View style={s.pickerContainer}>
-                  <Picker selectedValue={reproStatus} onValueChange={(v) => setReproStatus(v as ReproStatus)} style={s.picker}>
-                    {statusOptions.map(opt => (
-                      <Picker.Item key={opt} label={opt} value={opt} />
-                    ))}
-                  </Picker>
+                  <Select
+                    value={reproStatus}
+                    onValueChange={(v) => setReproStatus(v as ReproStatus)}
+                    options={statusOptions.map((opt) => ({ label: opt, value: opt }))}
+                  />
                 </View>
               </View>
             </View>
@@ -371,11 +373,11 @@ export default function EditAnimalScreen() {
               <View style={[s.inputGroup, { marginBottom: 0 }]}>
                 <Text style={s.label}>Status</Text>
                 <View style={s.pickerContainer}>
-                  <Picker selectedValue={reproStatus} onValueChange={(v) => setReproStatus(v as ReproStatus)} style={s.picker}>
-                    {statusOptions.map(opt => (
-                      <Picker.Item key={opt} label={opt} value={opt} />
-                    ))}
-                  </Picker>
+                  <Select
+                    value={reproStatus}
+                    onValueChange={(v) => setReproStatus(v as ReproStatus)}
+                    options={statusOptions.map((opt) => ({ label: opt, value: opt }))}
+                  />
                 </View>
               </View>
             </View>
@@ -457,6 +459,8 @@ export default function EditAnimalScreen() {
 
       <View style={{ height: 60 }} />
     </ScrollView>
+    </SafeAreaView>
+    {imagePicker.modal}
     </AppBackground>
   );
 }

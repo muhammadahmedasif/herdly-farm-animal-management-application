@@ -8,6 +8,7 @@ import { useNow } from '../../utils/useNow';
 import { Colors, Shadows } from '../../constants/Colors';
 import { AppBackground } from '../../components/ui';
 import { useStore } from '../../store/StoreContext';
+import { resolveAnimalImageUri } from '../../database';
 
 export default function AnimalDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -55,9 +56,9 @@ export default function AnimalDetailScreen() {
       
       {/* Premium Profile Card */}
       <View style={s.headerCard}>
-        {animal.image_url && !imgError ? (
+        {resolveAnimalImageUri(animal.image_url) && !imgError ? (
           <View style={s.photoCol}>
-            <Image source={{ uri: animal.image_url }} style={s.heroImage} resizeMode="contain" onError={() => setImgError(true)} />
+            <Image source={{ uri: resolveAnimalImageUri(animal.image_url) }} style={s.heroImage} resizeMode="contain" onError={() => setImgError(true)} />
           </View>
         ) : (
           <View style={s.photoColPlaceholder}>
