@@ -13,6 +13,7 @@
     },
     "android": {
       "package": "com.herdly.livestock",
+      "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundColor": "#123B63"
@@ -24,7 +25,8 @@
         "android.permission.INTERNET",
         "android.permission.RECEIVE_BOOT_COMPLETED",
         "android.permission.VIBRATE",
-        "android.permission.POST_NOTIFICATIONS"
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "web": {
@@ -57,10 +59,17 @@
           "cameraPermission": "Herdly needs access to your camera to take animal photos."
         }
       ],
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      "expo-sqlite"
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "bc42ffe0-6007-4c97-ae42-79b3eaad6240"
+      }
     }
   }
 }

@@ -20,6 +20,7 @@ import { Colors, Shadows } from '../../constants/Colors';
 import { SPECIES_EMOJI, SPECIES_LIST } from '../../constants/livestock';
 import { useStore } from '../../store/StoreContext';
 import { Animal, ReproStatus, Sex, Species } from '../../types';
+import { uuid } from '../../utils/uuid';
 import { addDays, dateFromAge, formatAge, getGestationDays, toDateString } from '../../utils/date';
 import { getEffectiveLactation } from '../../utils/lactation';
 import { useNow } from '../../utils/useNow';
@@ -147,7 +148,7 @@ export default function RegisterAnimalScreen() {
     const finalDob = isEstimated ? calculateDobFromAge() : dob;
 
     const newAnimal: Animal = {
-      id: Math.random().toString(36).substring(7),
+      id: uuid(),
       tag_number: tag,
       name: name.trim() || 'Unknown',
       species,
@@ -169,7 +170,7 @@ export default function RegisterAnimalScreen() {
     // Register the calf along with its pregnant mother in one step
     if (registerCalf) {
       const calf: Animal = {
-        id: Math.random().toString(36).substring(7),
+        id: uuid(),
         tag_number: calfRegTag.trim(),
         name: calfRegName.trim() || `Calf of ${newAnimal.tag_number}`,
         species: newAnimal.species,

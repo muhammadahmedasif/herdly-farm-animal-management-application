@@ -1,13 +1,25 @@
 /**
- * Herdly — Local Data Store
- * Uses AsyncStorage so data persists between app restarts.
- * When Supabase is connected, only this file changes — all screens stay the same.
+ * Herdly — Data store (SQLite-backed).
+ *
+ * The public `useStore()` API is unchanged. Internally, every CRUD operation now
+ * goes through the repository layer + SQLite instead of AsyncStorage JSON files.
+ * When a cloud backend (e.g. Supabase) is added later, only the repositories need
+ * to change — this file and all screens stay the same.
  */
 import React, { createContext, useContext, useEffect, useReducer, useCallback } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import Toast from 'react-native-toast-message';
 import type {
   Animal, Insemination, Calving, Vaccination, Deworming,
 } from '../types';
+import {
+  initDatabase,
+  migrateFromAsyncStorage,
+  animalRepository,
+  inseminationRepository,
+  calvingRepository,
+  vaccinationRepository,
+  dewormingRepository,
+} from '../database';
 
 // ─── State shape ────────────────────────────────────────────────────────────
 interface StoreState {
@@ -35,9 +47,9 @@ type Action =
   | { type: 'UPDATE_INSEMINATION';payload: Insemination }
   | { type: 'ADD_CALVING';        payload: Calving }
   | { type: 'UPDATE_CALVING';     payload: Calving }
+  | { type: 'DELETE_CALVING';     payload: string }
   | { type: 'ADD_VACCINATION';    payload: Vaccination }
-  | { type: 'ADD_DEWORMING';      payload: Deworming }
-  | { type: 'DELETE_CALVING';     payload: string };
+  | { type: 'ADD_DEWORMING';      payload: Deworming };
 
 function reducer(state: StoreState, action: Action): StoreState {
   switch (action.type) {
@@ -69,109 +81,164 @@ interface StoreContext extends StoreState {
   deleteCalving:      (id: string) => Promise<void>;
   addVaccination:     (v: Vaccination) => Promise<void>;
   addDeworming:       (d: Deworming) => Promise<void>;
+  /** Atomic calving write: insert calving (+ optional calf animal + mother update). */
+  recordCalving:      (c: Calving, calf?: Animal, motherUpdate?: Animal) => Promise<void>;
 }
 
 const Ctx = createContext<StoreContext>({} as StoreContext);
-
-// ─── Storage helpers ─────────────────────────────────────────────────────────
-const KEYS = {
-  animals:       '@herdly/animals',
-  inseminations: '@herdly/inseminations',
-  calvings:      '@herdly/calvings',
-  vaccinations:  '@herdly/vaccinations',
-  dewormings:    '@herdly/dewormings',
-};
-
-async function save<T>(key: string, data: T[]) {
-  await AsyncStorage.setItem(key, JSON.stringify(data));
-}
-async function load<T>(key: string): Promise<T[]> {
-  const raw = await AsyncStorage.getItem(key);
-  return raw ? JSON.parse(raw) : [];
-}
 
 // ─── Provider ────────────────────────────────────────────────────────────────
 export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(reducer, INITIAL);
 
-  // Load everything from AsyncStorage on mount
+  // Initialize DB, migrate legacy data, then load everything into state.
   useEffect(() => {
+    let cancelled = false;
     (async () => {
       try {
+        const db = await initDatabase();
+        await migrateFromAsyncStorage(db);
         const [animals, inseminations, calvings, vaccinations, dewormings] = await Promise.all([
-          load<Animal>(KEYS.animals),
-          load<Insemination>(KEYS.inseminations),
-          load<Calving>(KEYS.calvings),
-          load<Vaccination>(KEYS.vaccinations),
-          load<Deworming>(KEYS.dewormings),
+          animalRepository.getAnimals(db),
+          inseminationRepository.getInseminations(db),
+          calvingRepository.getCalvings(db),
+          vaccinationRepository.getVaccinations(db),
+          dewormingRepository.getDewormings(db),
         ]);
-        dispatch({ type: 'LOAD', payload: { animals, inseminations, calvings, vaccinations, dewormings } });
-      } catch {
-        dispatch({ type: 'DONE_LOADING' });
+        if (!cancelled) {
+          dispatch({ type: 'LOAD', payload: { animals, inseminations, calvings, vaccinations, dewormings } });
+        }
+      } catch (e) {
+        // Never leave the app stuck on the loading screen.
+        console.error('[Herdly] Failed to initialize local database:', e);
+        if (!cancelled) dispatch({ type: 'DONE_LOADING' });
       }
     })();
+    return () => { cancelled = true; };
   }, []);
 
-  // CRUD helpers
   const addAnimal = useCallback(async (a: Animal) => {
-    dispatch({ type: 'ADD_ANIMAL', payload: a });
-    const next = [...state.animals, a];
-    await save(KEYS.animals, next);
-  }, [state.animals]);
+    try {
+      await animalRepository.createAnimal(a);
+      dispatch({ type: 'ADD_ANIMAL', payload: a });
+    } catch (e) {
+      console.error('[Herdly] addAnimal failed:', e);
+      Toast.show({ type: 'error', text1: 'Save failed', text2: 'Could not save animal.' });
+      throw e;
+    }
+  }, []);
 
   const updateAnimal = useCallback(async (a: Animal) => {
-    dispatch({ type: 'UPDATE_ANIMAL', payload: a });
-    const next = state.animals.map(x => x.id === a.id ? a : x);
-    await save(KEYS.animals, next);
-  }, [state.animals]);
+    try {
+      await animalRepository.updateAnimal(a);
+      dispatch({ type: 'UPDATE_ANIMAL', payload: a });
+    } catch (e) {
+      console.error('[Herdly] updateAnimal failed:', e);
+      Toast.show({ type: 'error', text1: 'Save failed', text2: 'Could not update animal.' });
+      throw e;
+    }
+  }, []);
 
   const deleteAnimal = useCallback(async (id: string) => {
-    dispatch({ type: 'DELETE_ANIMAL', payload: id });
-    const next = state.animals.filter(x => x.id !== id);
-    await save(KEYS.animals, next);
-  }, [state.animals]);
+    try {
+      await animalRepository.deleteAnimal(id);
+      dispatch({ type: 'DELETE_ANIMAL', payload: id });
+    } catch (e) {
+      console.error('[Herdly] deleteAnimal failed:', e);
+      Toast.show({ type: 'error', text1: 'Delete failed', text2: 'Could not delete animal.' });
+      throw e;
+    }
+  }, []);
 
   const addInsemination = useCallback(async (i: Insemination) => {
-    dispatch({ type: 'ADD_INSEMINATION', payload: i });
-    const next = [...state.inseminations, i];
-    await save(KEYS.inseminations, next);
-  }, [state.inseminations]);
+    try {
+      await inseminationRepository.createInsemination(i);
+      dispatch({ type: 'ADD_INSEMINATION', payload: i });
+    } catch (e) {
+      console.error('[Herdly] addInsemination failed:', e);
+      Toast.show({ type: 'error', text1: 'Save failed', text2: 'Could not save insemination.' });
+      throw e;
+    }
+  }, []);
 
   const updateInsemination = useCallback(async (i: Insemination) => {
-    dispatch({ type: 'UPDATE_INSEMINATION', payload: i });
-    const next = state.inseminations.map(x => x.id === i.id ? i : x);
-    await save(KEYS.inseminations, next);
-  }, [state.inseminations]);
+    try {
+      await inseminationRepository.updateInsemination(i);
+      dispatch({ type: 'UPDATE_INSEMINATION', payload: i });
+    } catch (e) {
+      console.error('[Herdly] updateInsemination failed:', e);
+      Toast.show({ type: 'error', text1: 'Save failed', text2: 'Could not update insemination.' });
+      throw e;
+    }
+  }, []);
 
   const addCalving = useCallback(async (c: Calving) => {
-    dispatch({ type: 'ADD_CALVING', payload: c });
-    const next = [...state.calvings, c];
-    await save(KEYS.calvings, next);
-  }, [state.calvings]);
+    try {
+      await calvingRepository.createCalving(c);
+      dispatch({ type: 'ADD_CALVING', payload: c });
+    } catch (e) {
+      console.error('[Herdly] addCalving failed:', e);
+      Toast.show({ type: 'error', text1: 'Save failed', text2: 'Could not save calving.' });
+      throw e;
+    }
+  }, []);
 
   const updateCalving = useCallback(async (c: Calving) => {
-    dispatch({ type: 'UPDATE_CALVING', payload: c });
-    const next = state.calvings.map(x => x.id === c.id ? c : x);
-    await save(KEYS.calvings, next);
-  }, [state.calvings]);
+    try {
+      await calvingRepository.updateCalving(c);
+      dispatch({ type: 'UPDATE_CALVING', payload: c });
+    } catch (e) {
+      console.error('[Herdly] updateCalving failed:', e);
+      Toast.show({ type: 'error', text1: 'Save failed', text2: 'Could not update calving.' });
+      throw e;
+    }
+  }, []);
 
   const deleteCalving = useCallback(async (id: string) => {
-    dispatch({ type: 'DELETE_CALVING', payload: id });
-    const next = state.calvings.filter(x => x.id !== id);
-    await save(KEYS.calvings, next);
-  }, [state.calvings]);
+    try {
+      await calvingRepository.deleteCalving(id);
+      dispatch({ type: 'DELETE_CALVING', payload: id });
+    } catch (e) {
+      console.error('[Herdly] deleteCalving failed:', e);
+      Toast.show({ type: 'error', text1: 'Delete failed', text2: 'Could not delete calving.' });
+      throw e;
+    }
+  }, []);
 
   const addVaccination = useCallback(async (v: Vaccination) => {
-    dispatch({ type: 'ADD_VACCINATION', payload: v });
-    const next = [...state.vaccinations, v];
-    await save(KEYS.vaccinations, next);
-  }, [state.vaccinations]);
+    try {
+      await vaccinationRepository.createVaccination(v);
+      dispatch({ type: 'ADD_VACCINATION', payload: v });
+    } catch (e) {
+      console.error('[Herdly] addVaccination failed:', e);
+      Toast.show({ type: 'error', text1: 'Save failed', text2: 'Could not save vaccination.' });
+      throw e;
+    }
+  }, []);
 
   const addDeworming = useCallback(async (d: Deworming) => {
-    dispatch({ type: 'ADD_DEWORMING', payload: d });
-    const next = [...state.dewormings, d];
-    await save(KEYS.dewormings, next);
-  }, [state.dewormings]);
+    try {
+      await dewormingRepository.createDeworming(d);
+      dispatch({ type: 'ADD_DEWORMING', payload: d });
+    } catch (e) {
+      console.error('[Herdly] addDeworming failed:', e);
+      Toast.show({ type: 'error', text1: 'Save failed', text2: 'Could not save deworming.' });
+      throw e;
+    }
+  }, []);
+
+  const recordCalving = useCallback(async (c: Calving, calf?: Animal, motherUpdate?: Animal) => {
+    try {
+      await calvingRepository.recordCalving(c, calf, motherUpdate);
+      dispatch({ type: 'ADD_CALVING', payload: c });
+      if (calf) dispatch({ type: 'ADD_ANIMAL', payload: calf });
+      if (motherUpdate) dispatch({ type: 'UPDATE_ANIMAL', payload: motherUpdate });
+    } catch (e) {
+      console.error('[Herdly] recordCalving failed:', e);
+      Toast.show({ type: 'error', text1: 'Save failed', text2: 'Could not save calving.' });
+      throw e;
+    }
+  }, []);
 
   return (
     <Ctx.Provider value={{
@@ -184,6 +251,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       updateCalving,
       deleteCalving,
       addVaccination, addDeworming,
+      recordCalving,
     }}>
       {children}
     </Ctx.Provider>

@@ -18,6 +18,7 @@ import { AppBackground } from '../../components/ui';
 import { Colors } from '../../constants/Colors';
 import { useStore } from '../../store/StoreContext';
 import { Deworming } from '../../types';
+import { uuid } from '../../utils/uuid';
 import { toDateString } from '../../utils/date';
 
 export default function DewormingScreen() {
@@ -53,7 +54,7 @@ export default function DewormingScreen() {
     }
 
     const newRecord: Deworming = {
-      id: Math.random().toString(36).substring(7),
+      id: uuid(),
       animal_id: animalId,
       product_name: productName,
       date_given: toDateString(dateGiven),

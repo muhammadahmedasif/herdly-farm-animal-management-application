@@ -26,6 +26,7 @@ import {
 import { Colors, Shadows, Radius } from '../../constants/Colors';
 import { useStore } from '../../store/StoreContext';
 import { GradientHeader, AppBackground } from '../../components/ui';
+import { getDueDateStatus } from '../../utils/dateCalculations';
 
 const { width } = Dimensions.get('window');
 
@@ -74,9 +75,16 @@ export default function HomeScreen() {
 
   const totalAnimals = animals.length;
   const pregnantCount = animals.filter(a => a.repro_status === 'Pregnant').length;
-  
-  // Basic mock alert computation for now to show real length
-  const alertsCount = vaccinations.length + dewormings.length;
+
+  // A health task is "due" when its next due date is today, within the soon window, or overdue.
+  const isDue = (dateStr?: string) => !!dateStr && getDueDateStatus(dateStr) !== 'upcoming';
+
+  const vaccDue = vaccinations.filter(v => isDue(v.next_due_date)).length;
+  const dewormDue = dewormings.filter(d => isDue(d.next_due_date)).length;
+  const insemDue = inseminations.filter(
+    i => (i.pregnancy_status === 'Pending' || i.pregnancy_status === 'Inseminated') && isDue(i.pregnancy_check_date)
+  ).length;
+  const alertsCount = vaccDue + dewormDue + insemDue;
 
   const STATS = [
     { label: 'Total Animals', value: totalAnimals, icon: TrendingUp, color: Colors.primary, bg: '#E0EAFA', route: '/animals' },
@@ -87,9 +95,9 @@ export default function HomeScreen() {
   const [imgFailed, setImgFailed] = React.useState<Record<string, boolean>>({});
 
   const ALERTS = [
-    { id: '1', title: 'Vaccinations', count: vaccinations.length, color: Colors.warning, icon: Syringe, route: '/health/vaccination' },
-    { id: '2', title: 'Deworming', count: dewormings.length, color: Colors.danger, icon: Pill, route: '/health/deworming' },
-    { id: '3', title: 'Insemination', count: inseminations.length, color: Colors.info, icon: Dna, route: '/health/insemination' },
+    { id: '1', title: 'Vaccinations', count: vaccDue, color: Colors.warning, icon: Syringe, route: '/health/vaccination' },
+    { id: '2', title: 'Deworming', count: dewormDue, color: Colors.danger, icon: Pill, route: '/health/deworming' },
+    { id: '3', title: 'Insemination', count: insemDue, color: Colors.info, icon: Dna, route: '/health/insemination' },
   ];
 
   return (

@@ -1,5 +1,10 @@
 # Herdly — App Architecture (End-to-End)
 
+> **Storage update:** Herdly now uses a local **SQLite** database (`expo-sqlite`,
+> `herdly.db`) via a repository layer under `database/`. The earlier AsyncStorage
+> JSON store was replaced; legacy AsyncStorage data is migrated once into SQLite.
+> See `database/` for the implementation.
+
 A complete reference for how Herdly is structured, how data is stored, and how
 the screens and business logic fit together.
 

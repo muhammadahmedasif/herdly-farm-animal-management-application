@@ -18,6 +18,7 @@ import { AppBackground } from '../../components/ui';
 import { Colors } from '../../constants/Colors';
 import { useStore } from '../../store/StoreContext';
 import { Vaccination } from '../../types';
+import { uuid } from '../../utils/uuid';
 import { toDateString } from '../../utils/date';
 
 export default function VaccinationScreen() {
@@ -53,7 +54,7 @@ export default function VaccinationScreen() {
     }
 
     const newRecord: Vaccination = {
-      id: Math.random().toString(36).substring(7),
+      id: uuid(),
       animal_id: animalId,
       vaccine_name: vaccineName,
       date_given: toDateString(dateGiven),

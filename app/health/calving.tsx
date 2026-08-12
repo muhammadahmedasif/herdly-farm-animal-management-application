@@ -22,12 +22,13 @@ import { AppBackground } from '../../components/ui';
 import { Colors } from '../../constants/Colors';
 import { useStore } from '../../store/StoreContext';
 import { Calving, Sex } from '../../types';
+import { uuid } from '../../utils/uuid';
 import { addDays, getGestationDays, parseDate, toDateString } from '../../utils/date';
 import { incrementLactation } from '../../utils/lactation';
 
 export default function CalvingScreen() {
   const router = useRouter();
-  const { animals, calvings, addCalving, updateCalving, deleteCalving, inseminations, addAnimal, updateAnimal } = useStore();
+  const { animals, calvings, addCalving, updateCalving, deleteCalving, inseminations, recordCalving, updateAnimal } = useStore();
 
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -100,7 +101,7 @@ export default function CalvingScreen() {
     }
 
     const record: Calving = {
-      id: editingId || Math.random().toString(36).substring(7),
+      id: editingId || uuid(),
       animal_id: animalId,
       insemination_id: matchingIns?.id || '',
       calving_date: calvingDate ? toDateString(calvingDate) : '',
@@ -115,7 +116,7 @@ export default function CalvingScreen() {
 
     if (calfTag && calfTag.trim() !== '' && !editingId) {
       const newCalf = {
-        id: Math.random().toString(36).substring(7),
+        id: uuid(),
         tag_number: calfTag.trim(),
         name: calfName.trim() || `Calf of ${mother?.tag_number || 'Unknown'}`,
         species: mother?.species || 'Cow',
@@ -129,10 +130,19 @@ export default function CalvingScreen() {
         image_url: calfImage || '',
         notes: `Mother Tag: ${mother?.tag_number || 'Unknown'}`,
       };
-      await addAnimal(newCalf);
-    }
-
-    if (editingId) {
+      const motherUpdate = mother
+        ? { ...mother, repro_status: 'Newly Calved' as any, lactation_number: incrementLactation(mother.lactation_number) }
+        : undefined;
+      // Atomic: calving + calf animal + mother update in one SQLite transaction.
+      await recordCalving(record, newCalf, motherUpdate);
+      Toast.show({ type: 'success', text1: 'Saved', text2: 'Calving record added.' });
+    } else if (!editingId) {
+      const motherUpdate = mother
+        ? { ...mother, repro_status: 'Newly Calved' as any, lactation_number: incrementLactation(mother.lactation_number) }
+        : undefined;
+      await recordCalving(record, undefined, motherUpdate);
+      Toast.show({ type: 'success', text1: 'Saved', text2: 'Calving record added.' });
+    } else {
       await updateCalving(record);
       // Keep the linked calf's photo in sync when editing
       if (calfTag && calfTag.trim() !== '') {
@@ -142,15 +152,6 @@ export default function CalvingScreen() {
         }
       }
       Toast.show({ type: 'success', text1: 'Updated', text2: 'Calving record updated.' });
-    } else {
-      await addCalving(record);
-
-      // Sync: after a new calving commit the next lactation and end the pregnancy
-      if (mother) {
-        await updateAnimal({ ...mother, repro_status: 'Newly Calved', lactation_number: incrementLactation(mother.lactation_number) });
-      }
-
-      Toast.show({ type: 'success', text1: 'Saved', text2: 'Calving record added.' });
     }
 
     setShowForm(false);

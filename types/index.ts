@@ -34,6 +34,7 @@ export interface Animal {
   image_url:     string;
   notes:         string;
   created_at:    string;
+  updated_at?:   string;
 }
 
 export interface Insemination {
@@ -48,6 +49,7 @@ export interface Insemination {
   expected_calving_date: string; // YYYY-MM-DD
   notes:            string;
   created_at:       string;
+  updated_at?:      string;
 }
 
 export interface Calving {
@@ -62,6 +64,7 @@ export interface Calving {
   complications: string;
   notes:         string;
   created_at:    string;
+  updated_at?:   string;
 }
 
 export interface Vaccination {
@@ -73,6 +76,7 @@ export interface Vaccination {
   administered_by: string;
   notes:          string;
   created_at:     string;
+  updated_at?:    string;
 }
 
 export interface Deworming {
@@ -84,4 +88,5 @@ export interface Deworming {
   dose_ml:        string;
   notes:          string;
   created_at:     string;
+  updated_at?:    string;
 }

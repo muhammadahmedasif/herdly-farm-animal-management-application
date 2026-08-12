@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Image } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Edit2, Trash2, Calendar, Tag as TagIcon, Hash, Activity } from 'lucide-react-native';
@@ -16,6 +16,7 @@ export default function AnimalDetailScreen() {
 
   const animal = animals.find(a => a.id === id);
   const now = useNow();
+  const [imgError, setImgError] = useState(false);
 
   if (!animal) {
     return (
@@ -54,9 +55,9 @@ export default function AnimalDetailScreen() {
       
       {/* Premium Profile Card */}
       <View style={s.headerCard}>
-        {animal.image_url ? (
+        {animal.image_url && !imgError ? (
           <View style={s.photoCol}>
-            <Image source={{ uri: animal.image_url }} style={s.heroImage} resizeMode="contain" />
+            <Image source={{ uri: animal.image_url }} style={s.heroImage} resizeMode="contain" onError={() => setImgError(true)} />
           </View>
         ) : (
           <View style={s.photoColPlaceholder}>

@@ -19,6 +19,7 @@ import { AppBackground } from '../../components/ui';
 import { Colors } from '../../constants/Colors';
 import { useStore } from '../../store/StoreContext';
 import { Insemination } from '../../types';
+import { uuid } from '../../utils/uuid';
 import { addDays, getGestationDays, parseDate, toDateString } from '../../utils/date';
 import { getEffectiveLactation, PREGNANCY_CHECK_DAYS } from '../../utils/lactation';
 import { useNow } from '../../utils/useNow';
@@ -111,7 +112,7 @@ export default function InseminationScreen() {
       }
     } else {
       const newRecord: Insemination = {
-        id: Math.random().toString(36).substring(7),
+        id: uuid(),
         animal_id: animalId,
         lactation_number: lactation,
         ai_date: aiDateStr,

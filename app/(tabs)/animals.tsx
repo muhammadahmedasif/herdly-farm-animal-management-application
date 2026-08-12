@@ -13,7 +13,7 @@ import {
   Image,
 } from 'react-native';
 import { Colors, Shadows, Radius } from '../../constants/Colors';
-import { SPECIES_EMOJI } from '../../constants/livestock';
+import { SPECIES_EMOJI, Species } from '../../constants/livestock';
 import { useStore } from '../../store/StoreContext';
 import { GradientHeader, AppBackground } from '../../components/ui';
 import { formatAge, formatDob } from '../../utils/date';
@@ -122,13 +122,7 @@ export default function AnimalsScreen() {
             >
               {/* Card Header (large identifying photo) */}
               <View style={s.cardHead}>
-                {item.image_url ? (
-                  <Image source={{ uri: item.image_url }} style={s.cardHeadImage} />
-                ) : (
-                  <View style={[s.cardHeadImage, s.cardHeadImagePlaceholder]}>
-                    <Text style={s.cardHeadEmoji}>{SPECIES_EMOJI[item.species] || '🐄'}</Text>
-                  </View>
-                )}
+                <AnimalPhoto uri={item.image_url} species={item.species} />
                 <View style={s.cardHeadOverlay} />
                 <View style={s.cardHeadText}>
                   <Text style={s.cardHeadLabel}>Cattle Name</Text>
@@ -179,6 +173,19 @@ function Row({ label, value }: { label: string; value: string; }) {
       <Text style={s.gridValue} numberOfLines={1}>{value}</Text>
     </View>
   );
+}
+
+/** Animal header image with graceful fallback to a species emoji placeholder. */
+function AnimalPhoto({ uri, species }: { uri?: string; species: Species; }) {
+  const [err, setErr] = useState(false);
+  if (!uri || err) {
+    return (
+      <View style={[s.cardHeadImage, s.cardHeadImagePlaceholder]}>
+        <Text style={s.cardHeadEmoji}>{SPECIES_EMOJI[species] || '🐄'}</Text>
+      </View>
+    );
+  }
+  return <Image source={{ uri }} style={s.cardHeadImage} onError={() => setErr(true)} />;
 }
 
 const s = StyleSheet.create({

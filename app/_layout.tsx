@@ -3,7 +3,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import 'react-native-reanimated';
 import Toast from 'react-native-toast-message';
-import { StoreProvider } from '../store/StoreContext';
+import { StoreProvider, useStore } from '../store/StoreContext';
 
 export {
   ErrorBoundary,
@@ -15,15 +15,16 @@ export const unstable_settings = {
 
 SplashScreen.preventAutoHideAsync();
 
-export default function RootLayout() {
+function RootStack() {
+  const { loading } = useStore();
+
   useEffect(() => {
-    const timer = setTimeout(() => SplashScreen.hideAsync(), 500);
-    return () => clearTimeout(timer);
-  }, []);
+    if (!loading) SplashScreen.hideAsync();
+  }, [loading]);
 
   return (
-    <StoreProvider>
-      <Stack screenOptions={{ headerShown: false }}>
+    <>
+    <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen
           name="animals/register"
@@ -99,6 +100,14 @@ export default function RootLayout() {
         <Stack.Screen name="+not-found" />
       </Stack>
       <Toast />
+    </>
+  );
+}
+
+export default function RootLayout() {
+  return (
+    <StoreProvider>
+      <RootStack />
     </StoreProvider>
   );
 }
