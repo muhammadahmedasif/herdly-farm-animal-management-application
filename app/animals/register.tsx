@@ -20,18 +20,19 @@ import { useImagePicker } from '../../components/PhotoPicker';
 import { Colors, Shadows } from '../../constants/Colors';
 import { SPECIES_EMOJI, SPECIES_LIST } from '../../constants/livestock';
 import { useStore } from '../../store/StoreContext';
-import { Animal, Calving, ReproStatus, Sex, Species } from '../../types';
+import { Animal, Calving, Insemination, ReproStatus, Sex, Species } from '../../types';
 import { persistAnimalImage } from '../../database/imageStorage';
 import { uuid } from '../../utils/uuid';
 import { addDays, dateFromAge, formatAge, getGestationDays, toDateString } from '../../utils/date';
-import { getEffectiveLactation } from '../../utils/lactation';
+import { getEffectiveLactation, PREGNANCY_CHECK_DAYS } from '../../utils/lactation';
+import { getEffectiveReproStatus } from '../../utils/animal';
 import { useNow } from '../../utils/useNow';
 
 type AgeInput = { years: string; months: string };
 
 export default function RegisterAnimalScreen() {
   const router = useRouter();
-  const { animals, addAnimal, addCalving } = useStore();
+  const { animals, addAnimal, addCalving, addInsemination } = useStore();
   const now = useNow();
   const imagePicker = useImagePicker();
 
@@ -59,9 +60,13 @@ export default function RegisterAnimalScreen() {
   const [calfRegTag, setCalfRegTag] = useState('');
   const [calfRegSex, setCalfRegSex] = useState<Sex>('Female');
 
-  // Optional animal + calf photos (kept as local uris; not uploaded to a server)
+  // Optional calf photo (kept as a local uri; not uploaded to a server)
   const [image, setImage] = useState<string | null>(null);
   const [calfRegImage, setCalfRegImage] = useState<string | null>(null);
+
+  // Mother selection & child number (apply to all animals, required for calves)
+  const [motherId, setMotherId] = useState('');
+  const [childNumber, setChildNumber] = useState('');
 
   // Suggest a calf tag derived from the mother's tag, e.g. C-102 -> C-102A, C-102B, ...
   const suggestCalfTag = () => {
@@ -81,6 +86,9 @@ export default function RegisterAnimalScreen() {
 
   // Expected calving (calf DOB) = insemination date + species gestation period
   const expectedCalfDob = reproStatus === 'Pregnant' ? addDays(toDateString(inseminationDate), getGestationDays(species)) : '';
+
+  // Female animals available for mother selection (all females, excluding calves)
+  const femaleAnimals = animals.filter(a => a.sex === 'Female' && getEffectiveReproStatus(a) !== 'Calf');
 
   // Dynamic Status Options
   const statusOptions = useMemo(() => {
@@ -154,12 +162,38 @@ export default function RegisterAnimalScreen() {
       repro_status: reproStatus,
       lactation_number: sex === 'Female' ? lactationNo : undefined,
       last_insemination_date: sex === 'Female' && ['Pregnant', 'Inseminated'].includes(reproStatus) ? toDateString(inseminationDate) : undefined,
+      mother_id: motherId || undefined,
+      child_number: childNumber.trim() || undefined,
       image_url,
       notes: '',
       created_at: new Date().toISOString(),
     };
 
     await addAnimal(newAnimal);
+
+    // ── Auto-create an insemination record so the animal appears in the
+    //    insemination list when registered with status Inseminated or Pregnant ──
+    if (sex === 'Female' && ['Inseminated', 'Pregnant'].includes(reproStatus)) {
+      const aiDateStr = toDateString(inseminationDate);
+      const pcDate = addDays(aiDateStr, PREGNANCY_CHECK_DAYS);
+      const expectedCalving = reproStatus === 'Pregnant'
+        ? addDays(aiDateStr, getGestationDays(species))
+        : '';
+      const insemRecord: Insemination = {
+        id: uuid(),
+        animal_id: animalId,
+        lactation_number: String(getEffectiveLactation({ repro_status: reproStatus, lactation_number: lactationNo })),
+        ai_date: aiDateStr,
+        semen_company: '',
+        bull_name: '',
+        pregnancy_check_date: pcDate,
+        pregnancy_status: reproStatus as any,
+        expected_calving_date: expectedCalving,
+        notes: 'Auto-created on animal registration',
+        created_at: new Date().toISOString(),
+      };
+      await addInsemination(insemRecord);
+    }
 
     // Register the calf along with its pregnant mother in one step
     if (registerCalf) {
@@ -178,6 +212,8 @@ export default function RegisterAnimalScreen() {
         repro_status: 'Calf',
         lactation_number: undefined,
         last_insemination_date: undefined,
+        mother_id: animalId,
+        child_number: undefined,
         image_url: calfImage,
         notes: `Mother Tag: ${newAnimal.tag_number}`,
         created_at: new Date().toISOString(),
@@ -202,6 +238,7 @@ export default function RegisterAnimalScreen() {
     Toast.show({ type: 'success', text1: 'Awesome!', text2: 'Animal registered successfully.' });
     router.back();
   };
+
 
   return (
     <AppBackground>
@@ -293,6 +330,39 @@ export default function RegisterAnimalScreen() {
             <View style={s.inputWrapper}>
               <TextInput style={s.input} placeholder="e.g. Sahiwal" value={breed} onChangeText={setBreed} placeholderTextColor={Colors.textMuted} />
             </View>
+          </View>
+
+          {/* Mother Selection (optional) */}
+          <View style={s.inputGroup}>
+            <Text style={s.label}>Select Mother (Optional)</Text>
+            <View style={s.pickerContainer}>
+              <Select
+                value={motherId}
+                placeholder="-- No Mother / Unknown --"
+                onValueChange={setMotherId}
+                options={[
+                  { label: '-- No Mother / Unknown --', value: '' },
+                  ...femaleAnimals.map(a => ({ label: `${a.tag_number}${a.name && a.name !== 'Unknown' ? ' – ' + a.name : ''}`, value: a.id })),
+                ]}
+              />
+            </View>
+            <Text style={s.fieldHint}>Link this animal to its mother (for calves and traceability)</Text>
+          </View>
+
+          {/* Child Number */}
+          <View style={s.inputGroup}>
+            <Text style={s.label}>Child No. (Optional)</Text>
+            <View style={s.inputWrapper}>
+              <TextInput
+                style={s.input}
+                placeholder="e.g. 1 (1st calf), 2 (2nd calf)..."
+                value={childNumber}
+                onChangeText={setChildNumber}
+                keyboardType="numeric"
+                placeholderTextColor={Colors.textMuted}
+              />
+            </View>
+            <Text style={s.fieldHint}>Which lactation calf number is this animal?</Text>
           </View>
         </View>
 
@@ -678,6 +748,8 @@ const s = StyleSheet.create({
 
   row: { flexDirection: 'row', alignItems: 'center' },
   inputGroup: { marginBottom: 18 },
+  fieldHint: { fontSize: 11, color: '#6B7280', fontWeight: '600', marginTop: 6, marginLeft: 4 },
+
   label: {
     fontSize: 13,
     fontWeight: '800',

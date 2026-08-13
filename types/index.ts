@@ -31,6 +31,8 @@ export interface Animal {
   repro_status:  ReproStatus;
   lactation_number?: string;
   last_insemination_date?: string;
+  mother_id?:    string;        // FK to parent animal (optional)
+  child_number?: string;        // Which lactation calf this animal is (e.g. "1", "2")
   image_url:     string;
   notes:         string;
   created_at:    string;

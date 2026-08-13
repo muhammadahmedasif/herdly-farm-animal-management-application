@@ -24,9 +24,11 @@ import { useStore } from '../../store/StoreContext';
 import { Calving, Sex } from '../../types';
 import { uuid } from '../../utils/uuid';
 import { persistAnimalImage, resolveAnimalImageUri } from '../../database/imageStorage';
-import { addDays, getGestationDays, parseDate, toDateString } from '../../utils/date';
+import { addDays, dateFromAge, getGestationDays, parseDate, toDateString } from '../../utils/date';
 import { getEffectiveReproStatus } from '../../utils/animal';
 import { incrementLactation } from '../../utils/lactation';
+
+type CalfAgeInput = { years: string; months: string };
 
 export default function CalvingScreen() {
   const router = useRouter();
@@ -43,8 +45,13 @@ export default function CalvingScreen() {
   const [calfName, setCalfName] = useState('');
   const [calfSex, setCalfSex] = useState<Sex>('Female');
   const [calfWeight, setCalfWeight] = useState('');
-  const [complications, setComplications] = useState('');
+  const [birthDifficulty, setBirthDifficulty] = useState('');
   const [notes, setNotes] = useState('');
+  const [childNumber, setChildNumber] = useState('');
+
+  // Calf age/DOB toggle (same UX as register page)
+  const [calfAgeMode, setCalfAgeMode] = useState<'dob' | 'age'>('dob');
+  const [calfAgeInput, setCalfAgeInput] = useState<CalfAgeInput>({ years: '', months: '' });
 
   // Optional calf photo (kept as a local uri; not uploaded to a server)
   const [calfImage, setCalfImage] = useState<string | null>(null);
@@ -54,8 +61,8 @@ export default function CalvingScreen() {
     imagePicker.open(setter);
   };
 
-  // Only pregnant animals (not just insemination records) can calve
-  const pregnantAnimals = animals.filter(a => a.repro_status === 'Pregnant');
+  // All female animals (mothers) can calve — not just pregnant ones, but exclude calves
+  const motherAnimals = animals.filter(a => a.sex === 'Female' && getEffectiveReproStatus(a) !== 'Calf');
 
   // Calves: animals whose effective reproductive status is still "Calf"
   const calves = animals.filter(a => getEffectiveReproStatus(a) === 'Calf');
@@ -73,6 +80,17 @@ export default function CalvingScreen() {
   const onDateChange = (event: any, selectedDate?: Date) => {
     setShowDatePicker(Platform.OS === 'ios');
     if (selectedDate) setCalvingDate(selectedDate);
+  };
+
+  // Derive calf DOB from toggle state
+  const getCalfDob = (): string => {
+    if (calfAgeMode === 'dob') {
+      return calvingDate ? toDateString(calvingDate) : toDateString(new Date());
+    }
+    // age mode — compute from entered years/months
+    const y = parseInt(calfAgeInput.years) || 0;
+    const m = parseInt(calfAgeInput.months) || 0;
+    return toDateString(dateFromAge(y, m));
   };
 
   // Auto-pick the calving date from the mother's expected delivery date
@@ -109,8 +127,6 @@ export default function CalvingScreen() {
     if (calfTag && calfTag.trim() !== '') {
       const duplicate = animals.find(a => a.tag_number.trim().toLowerCase() === calfTag.trim().toLowerCase());
       if (duplicate && (!editingId || (editingId && calves.findIndex(c => c.tag_number.trim().toLowerCase() === calfTag.trim().toLowerCase()) === -1))) {
-        // Wait, if editing, we only block if the duplicate animal is NOT the linked calf of this record.
-        // Let's get the original record being edited.
         const originalRecord = calvings.find(c => c.id === editingId);
         const originalCalfTag = originalRecord?.calf_tag || '';
         if (!editingId || originalCalfTag.trim().toLowerCase() !== calfTag.trim().toLowerCase()) {
@@ -119,6 +135,9 @@ export default function CalvingScreen() {
         }
       }
     }
+
+    // Compute calf DOB based on toggle
+    const calfDob = getCalfDob();
 
     const record: Calving = {
       id: editingId || uuid(),
@@ -129,7 +148,7 @@ export default function CalvingScreen() {
       calf_name: calfName.trim(),
       calf_sex: calfSex,
       calf_weight_kg: parseFloat(calfWeight) || 0,
-      complications,
+      complications: birthDifficulty,
       notes,
       created_at: new Date().toISOString(),
     };
@@ -143,13 +162,18 @@ export default function CalvingScreen() {
         species: mother?.species || 'Cow',
         breed: mother?.breed || 'Unknown',
         sex: calfSex,
-        date_of_birth: calvingDate ? toDateString(calvingDate) : toDateString(new Date()),
-        dob_is_estimated: false,
+        date_of_birth: calfDob,
+        dob_is_estimated: calfAgeMode === 'age',
         color: '',
         repro_status: 'Calf' as any,
+        mother_id: animalId || undefined,
+        child_number: childNumber.trim() || undefined,
         created_at: new Date().toISOString(),
         image_url: calfImage ?? '',
-        notes: `Mother Tag: ${mother?.tag_number || 'Unknown'}`,
+        notes: [
+          `Mother Tag: ${mother?.tag_number || 'Unknown'}`,
+          childNumber.trim() ? `Child No.: ${childNumber.trim()}` : '',
+        ].filter(Boolean).join(' | '),
       };
       const motherUpdate = mother
         ? { ...mother, repro_status: 'Newly Calved' as any, lactation_number: incrementLactation(mother.lactation_number) }
@@ -175,11 +199,11 @@ export default function CalvingScreen() {
             name: calfName.trim() || `Calf of ${mother?.tag_number || 'Unknown'}`,
             sex: calfSex,
             image_url: calfImageUrl || existingCalf.image_url,
-            date_of_birth: calvingDate ? toDateString(calvingDate) : existingCalf.date_of_birth,
+            date_of_birth: calfDob,
+            mother_id: animalId || existingCalf.mother_id,
+            child_number: childNumber.trim() || existingCalf.child_number,
           });
         } else {
-          // If the user previously saved a calving record with no tag, they can now add one via Edit.
-          // Create the calf animal now.
           const calfId = uuid();
           const finalCalfImageUrl = calfImage ? await persistAnimalImage(calfId, calfImage) : '';
           const newCalf = {
@@ -189,13 +213,18 @@ export default function CalvingScreen() {
             species: mother?.species || 'Cow',
             breed: mother?.breed || 'Unknown',
             sex: calfSex,
-            date_of_birth: calvingDate ? toDateString(calvingDate) : toDateString(new Date()),
-            dob_is_estimated: false,
+            date_of_birth: calfDob,
+            dob_is_estimated: calfAgeMode === 'age',
             color: '',
             repro_status: 'Calf' as any,
+            mother_id: animalId || undefined,
+            child_number: childNumber.trim() || undefined,
             created_at: new Date().toISOString(),
             image_url: finalCalfImageUrl,
-            notes: `Mother Tag: ${mother?.tag_number || 'Unknown'}`,
+            notes: [
+              `Mother Tag: ${mother?.tag_number || 'Unknown'}`,
+              childNumber.trim() ? `Child No.: ${childNumber.trim()}` : '',
+            ].filter(Boolean).join(' | '),
           };
           await addAnimal(newCalf);
         }
@@ -203,20 +232,10 @@ export default function CalvingScreen() {
       Toast.show({ type: 'success', text1: 'Updated', text2: 'Calving record updated.' });
     }
 
-    setShowForm(false);
-    setEditingId(null);
-    setAnimalId('');
-    setCalvingDate(null);
-    setCalfTag('');
-    setCalfName('');
-    setCalfWeight('');
-    setComplications('');
-    setNotes('');
-    setCalfSex('Female');
-    setCalfImage(null);
+    resetForm();
   };
 
-  const handleCancel = () => {
+  const resetForm = () => {
     setShowForm(false);
     setEditingId(null);
     setAnimalId('');
@@ -224,11 +243,16 @@ export default function CalvingScreen() {
     setCalfTag('');
     setCalfName('');
     setCalfWeight('');
-    setComplications('');
+    setBirthDifficulty('');
     setNotes('');
     setCalfSex('Female');
     setCalfImage(null);
+    setChildNumber('');
+    setCalfAgeMode('dob');
+    setCalfAgeInput({ years: '', months: '' });
   };
+
+  const handleCancel = () => resetForm();
 
   const handleDelete = () => {
     if (!editingId) return;
@@ -257,10 +281,11 @@ export default function CalvingScreen() {
           <StatusBar backgroundColor={Colors.primary} barStyle="light-content" />
           <ScrollView style={s.container} contentContainerStyle={s.content}>
           <View style={s.card}>
-            <Text style={s.sectionHeader}>New Calving Record</Text>
+            <Text style={s.sectionHeader}>{editingId ? 'Edit Calving Record' : 'New Calving Record'}</Text>
 
+              {/* Mother Selection — ALL female animals */}
               <View style={s.inputGroup}>
-                <Text style={s.label}>Select Pregnant Mother (Optional)</Text>
+                <Text style={s.label}>Select Mother (Optional)</Text>
                 <View style={s.pickerWrapper}>
                   <Select
                     value={animalId}
@@ -270,13 +295,10 @@ export default function CalvingScreen() {
                     }}
                     options={[
                       { label: '-- No Mother / Unknown --', value: '' },
-                      ...pregnantAnimals.map(a => ({ label: `${a.tag_number} - ${a.name || 'Unknown'}`, value: a.id })),
+                      ...motherAnimals.map(a => ({ label: `${a.tag_number}${a.name && a.name !== 'Unknown' ? ' – ' + a.name : ''}`, value: a.id })),
                     ]}
                   />
                 </View>
-                {pregnantAnimals.length === 0 && (
-                  <Text style={s.emptyHint}>No pregnant animals. Mark a female as Pregnant (via Insemination or Register) first.</Text>
-                )}
               </View>
 
             <View style={s.row}>
@@ -331,6 +353,56 @@ export default function CalvingScreen() {
               </View>
             </View>
 
+            {/* Calf DOB / Age toggle */}
+            <View style={s.inputGroup}>
+              <Text style={s.label}>Calf Date of Birth / Age</Text>
+              <View style={s.ageToggleRow}>
+                <TouchableOpacity
+                  style={[s.toggleBtn, calfAgeMode === 'dob' && s.toggleBtnActive]}
+                  onPress={() => setCalfAgeMode('dob')}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[s.toggleText, calfAgeMode === 'dob' && s.toggleTextActive]}>Date of Birth</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[s.toggleBtn, calfAgeMode === 'age' && s.toggleBtnActive]}
+                  onPress={() => setCalfAgeMode('age')}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[s.toggleText, calfAgeMode === 'age' && s.toggleTextActive]}>Enter Age</Text>
+                </TouchableOpacity>
+              </View>
+
+              {calfAgeMode === 'age' ? (
+                <View style={s.row}>
+                  <View style={[s.inputGroup, { flex: 1, marginRight: 8, marginBottom: 0 }]}>
+                    <Text style={s.label}>Years</Text>
+                    <TextInput
+                      style={s.input}
+                      placeholder="0"
+                      keyboardType="numeric"
+                      value={calfAgeInput.years}
+                      onChangeText={(v) => setCalfAgeInput({ ...calfAgeInput, years: v })}
+                    />
+                  </View>
+                  <View style={[s.inputGroup, { flex: 1, marginLeft: 8, marginBottom: 0 }]}>
+                    <Text style={s.label}>Months</Text>
+                    <TextInput
+                      style={s.input}
+                      placeholder="0"
+                      keyboardType="numeric"
+                      value={calfAgeInput.months}
+                      onChangeText={(v) => setCalfAgeInput({ ...calfAgeInput, months: v })}
+                    />
+                  </View>
+                </View>
+              ) : (
+                <Text style={s.ageHint}>
+                  Calf DOB will be set to: <Text style={{ fontWeight: '900', color: Colors.primary }}>{calvingDate ? toDateString(calvingDate) : 'Calving date'}</Text>
+                </Text>
+              )}
+            </View>
+
             <View style={s.row}>
               <View style={[s.inputGroup, { flex: 1, paddingRight: 8 }]}>
                 <Text style={s.label}>Calf Name</Text>
@@ -339,6 +411,23 @@ export default function CalvingScreen() {
               <View style={[s.inputGroup, { flex: 1, paddingLeft: 8 }]}>
                 <Text style={s.label}>Calf Tag Number</Text>
                 <TextInput style={s.input} value={calfTag} onChangeText={setCalfTag} placeholder="e.g. C-105" />
+              </View>
+            </View>
+
+            <View style={s.row}>
+              <View style={[s.inputGroup, { flex: 1, paddingRight: 8 }]}>
+                <Text style={s.label}>Weight (kg)</Text>
+                <TextInput style={s.input} value={calfWeight} onChangeText={setCalfWeight} placeholder="e.g. 28" keyboardType="numeric" />
+              </View>
+              <View style={[s.inputGroup, { flex: 1, paddingLeft: 8 }]}>
+                <Text style={s.label}>Child No.</Text>
+                <TextInput
+                  style={s.input}
+                  value={childNumber}
+                  onChangeText={setChildNumber}
+                  placeholder="e.g. 1st, 2nd..."
+                  keyboardType="numeric"
+                />
               </View>
             </View>
 
@@ -364,13 +453,13 @@ export default function CalvingScreen() {
             </View>
 
             <View style={s.inputGroup}>
-              <Text style={s.label}>Weight (kg)</Text>
-              <TextInput style={s.input} value={calfWeight} onChangeText={setCalfWeight} placeholder="e.g. 28" keyboardType="numeric" />
-            </View>
-
-            <View style={s.inputGroup}>
-              <Text style={s.label}>Complications</Text>
-              <TextInput style={s.input} value={complications} onChangeText={setComplications} placeholder="e.g. None" />
+              <Text style={s.label}>Birth Difficulty</Text>
+              <TextInput
+                style={s.input}
+                value={birthDifficulty}
+                onChangeText={setBirthDifficulty}
+                placeholder="e.g. Normal / Difficult / Assisted"
+              />
             </View>
 
             <View style={s.inputGroup}>
@@ -415,6 +504,7 @@ export default function CalvingScreen() {
           ) : (
             calvings.map(item => {
               const animal = animals.find(a => a.id === item.animal_id);
+              const calf = animals.find(a => a.tag_number.trim().toLowerCase() === (item.calf_tag || '').trim().toLowerCase());
               return (
                 <TouchableOpacity
                   key={item.id}
@@ -430,10 +520,13 @@ export default function CalvingScreen() {
                     setCalfName(item.calf_name || '');
                     setCalfSex(item.calf_sex || 'Female');
                     setCalfWeight(item.calf_weight_kg ? item.calf_weight_kg.toString() : '');
-                    setComplications(item.complications || '');
+                    setBirthDifficulty(item.complications || '');
                     setNotes(item.notes || '');
-                    const linkedCalf = animals.find(a => a.tag_number.trim().toLowerCase() === (item.calf_tag || '').trim().toLowerCase());
-                    setCalfImage(linkedCalf?.image_url || null);
+                    setChildNumber(calf?.child_number || '');
+                    setCalfImage(calf?.image_url || null);
+                    // default to DOB mode for editing (calving date is the DOB)
+                    setCalfAgeMode('dob');
+                    setCalfAgeInput({ years: '', months: '' });
                     setShowForm(true);
                   }}
                 >
@@ -446,13 +539,19 @@ export default function CalvingScreen() {
                       <Text style={s.gridLabel}>Calf:</Text>
                       <Text style={s.gridValue}>{(item.calf_name || item.calf_tag || 'N/A')} ({item.calf_sex || 'N/A'})</Text>
                     </View>
+                    {calf?.child_number ? (
+                      <View style={s.gridRow}>
+                        <Text style={s.gridLabel}>Child No.:</Text>
+                        <Text style={s.gridValue}>{calf.child_number}</Text>
+                      </View>
+                    ) : null}
                     <View style={s.gridRow}>
                       <Text style={s.gridLabel}>Weight:</Text>
                       <Text style={s.gridValue}>{item.calf_weight_kg ? `${item.calf_weight_kg} kg` : 'N/A'}</Text>
                     </View>
                     {item.complications ? (
                       <View style={s.gridRow}>
-                        <Text style={s.gridLabel}>Complications:</Text>
+                        <Text style={s.gridLabel}>Birth Difficulty:</Text>
                         <Text style={[s.gridValue, { color: Colors.danger }]}>{item.complications}</Text>
                       </View>
                     ) : null}
@@ -473,10 +572,13 @@ export default function CalvingScreen() {
             setCalfTag('');
             setCalfName('');
             setCalfWeight('');
-            setComplications('');
+            setBirthDifficulty('');
             setNotes('');
             setCalfSex('Female');
             setCalfImage(null);
+            setChildNumber('');
+            setCalfAgeMode('dob');
+            setCalfAgeInput({ years: '', months: '' });
             setShowForm(true);
           }}
           activeOpacity={0.85}
@@ -510,6 +612,31 @@ const s = StyleSheet.create({
   emptyHint: { fontSize: 12, color: Colors.danger, fontWeight: '600', marginTop: 8, marginLeft: 4 },
   dateBtn: { backgroundColor: '#F8FAFC', borderWidth: 1.5, borderColor: '#E2E8F0', borderRadius: 16, minHeight: 56, paddingHorizontal: 16, paddingVertical: 0 },
   dateText: { fontSize: 16, color: Colors.textPrimary },
+
+  // Calf DOB/Age toggle
+  ageToggleRow: {
+    flexDirection: 'row',
+    backgroundColor: '#F3F4F6',
+    borderRadius: 14,
+    padding: 5,
+    marginBottom: 12,
+  },
+  toggleBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: 'center',
+    borderRadius: 10,
+  },
+  toggleBtnActive: {
+    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  toggleText: { fontSize: 13, fontWeight: '800', color: '#6B7280' },
+  toggleTextActive: { color: Colors.primary },
+  ageHint: { fontSize: 12, color: '#6B7280', fontWeight: '600', marginTop: 4, marginLeft: 2 },
 
   saveBtn: { backgroundColor: Colors.primary, paddingVertical: 18, borderRadius: 16, alignItems: 'center', shadowColor: Colors.primary, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.3, shadowRadius: 10, elevation: 8 },
   saveBtnText: { color: '#fff', fontSize: 18, fontWeight: '800' },

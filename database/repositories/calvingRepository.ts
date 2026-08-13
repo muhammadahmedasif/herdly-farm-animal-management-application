@@ -71,13 +71,14 @@ async function insertCalfAnimalRow(db: SQLiteDatabase, calf: Animal, imageUrl: s
   await db.runAsync(
     `INSERT INTO animals (
       id, tag_number, name, species, breed, sex, date_of_birth, dob_is_estimated,
-      color, repro_status, lactation_number, last_insemination_date, image_url,
-      notes, created_at, updated_at
-    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      color, repro_status, lactation_number, last_insemination_date,
+      mother_id, child_number, image_url, notes, created_at, updated_at
+    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     [
       calf.id, calf.tag_number ?? '', calf.name ?? 'Unknown', calf.species, calf.breed ?? '',
       calf.sex, calf.date_of_birth ?? '', calf.dob_is_estimated ? 1 : 0, calf.color ?? '',
       calf.repro_status, calf.lactation_number ?? null, calf.last_insemination_date ?? null,
+      calf.mother_id ?? null, calf.child_number ?? null,
       imageUrl, calf.notes ?? '', calf.created_at || nowIso(), calf.updated_at ?? nowIso(),
     ],
   );

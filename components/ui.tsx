@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { ChevronDown, Check } from 'lucide-react-native';
 import { Colors, Shadows, Radius } from '../constants/Colors';
+import { useSettings } from '../store/SettingsContext';
 
 // ─── Premium gradient header (dependency-free, layered sheen) ────────────────
 export function GradientHeader({
@@ -25,10 +26,31 @@ export function GradientHeader({
   right?: React.ReactNode;
   large?: boolean;
 }) {
+  const { headerStyle } = useSettings();
+
+  const isMinimal = headerStyle === 'minimal';
+  const isSolid = headerStyle === 'solid';
+
+  if (isMinimal) {
+    return (
+      <View style={[styles.header, { backgroundColor: 'transparent', paddingBottom: 10, paddingTop: 10 }]}>
+        <View style={{ flexShrink: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <View>
+            <Text style={[styles.headerTitle, { color: Colors.primary }, large && styles.headerTitleLarge]} numberOfLines={1}>
+              {title}
+            </Text>
+            {subtitle ? <Text style={[styles.headerSubtitle, { color: Colors.textSecondary }]}>{subtitle}</Text> : null}
+          </View>
+          {right ? <View style={styles.headerRight}>{right}</View> : null}
+        </View>
+      </View>
+    );
+  }
+
   return (
-    <View style={styles.header}>
+    <View style={[styles.header, isSolid && { backgroundColor: Colors.primary }]}>
       {/* Top sheen to suggest a vertical gradient without a native module */}
-      <View style={styles.headerSheen} pointerEvents="none" />
+      {!isSolid && <View style={styles.headerSheen} pointerEvents="none" />}
       <View style={[styles.headerInner, large && styles.headerInnerLarge]}>
         <View style={{ flexShrink: 1 }}>
           <Text style={[styles.headerTitle, large && styles.headerTitleLarge]} numberOfLines={1}>

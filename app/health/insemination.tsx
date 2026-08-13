@@ -20,7 +20,7 @@ import { Colors } from '../../constants/Colors';
 import { useStore } from '../../store/StoreContext';
 import { Insemination } from '../../types';
 import { uuid } from '../../utils/uuid';
-import { addDays, getGestationDays, parseDate, toDateString } from '../../utils/date';
+import { addDays, differenceInDays, getGestationDays, parseDate, toDateString } from '../../utils/date';
 import { getEffectiveLactation, PREGNANCY_CHECK_DAYS } from '../../utils/lactation';
 import { useNow } from '../../utils/useNow';
 
@@ -336,6 +336,18 @@ export default function InseminationScreen() {
               return d;
             })();
 
+            const checkDate = parseDate(item.pregnancy_check_date);
+            const daysLeftCheck = differenceInDays(checkDate, now);
+            const checkCountdownText = daysLeftCheck > 0 ? ` (${daysLeftCheck} d left)` : ' (Due)';
+
+            const daysLeftCalving = differenceInDays(computedCalving, now);
+            const calvingCountdownText = daysLeftCalving > 0 ? ` (${daysLeftCalving} d left)` : ' (Due)';
+            
+            let countdownText = `${days} days since Insemination`;
+            if (['Pregnant', 'Inseminated', 'Pending'].includes(item.pregnancy_status as string)) {
+              countdownText = daysLeftCalving > 0 ? `${daysLeftCalving} days until expected calving` : 'Expected to calve now';
+            }
+
             return (
               <TouchableOpacity
                 style={s.listCard}
@@ -360,7 +372,7 @@ export default function InseminationScreen() {
                     <View style={[s.statusBadge, { backgroundColor: statusBg }]}>
                       <Text style={[s.listCardStatus, { color: statusColor }]}>{item.pregnancy_status}</Text>
                     </View>
-                    <Text style={s.daysText}>{days} days since Insemination</Text>
+                    <Text style={s.daysText}>{countdownText}</Text>
                   </View>
                 </View>
 
@@ -369,15 +381,21 @@ export default function InseminationScreen() {
                     <Text style={s.gridLabel}>Insemination Date:</Text>
                     <Text style={s.gridValue}>{parseDate(item.ai_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</Text>
                   </View>
-                  <View style={s.gridRow}>
-                    <Text style={s.gridLabel}>Pregnancy Check Due:</Text>
-                    <Text style={[s.gridValue, { color: '#EF4444' }]}>{parseDate(item.pregnancy_check_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</Text>
-                  </View>
+                  {item.pregnancy_status !== 'Pregnant' && (
+                    <View style={s.gridRow}>
+                      <Text style={s.gridLabel}>Pregnancy Check Due:</Text>
+                      <Text style={[s.gridValue, { color: '#EF4444' }]}>
+                        {checkDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        <Text style={{ fontWeight: '800' }}>{checkCountdownText}</Text>
+                      </Text>
+                    </View>
+                  )}
                   {item.pregnancy_status === 'Pregnant' && (
                     <View style={[s.gridRow, { marginTop: 4 }]}>
                       <Text style={s.gridLabel}>Expected Delivery:</Text>
                       <Text style={[s.gridValue, { color: '#10B981' }]}>
                         {computedCalving.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        <Text style={{ fontWeight: '800' }}>{calvingCountdownText}</Text>
                       </Text>
                     </View>
                   )}
@@ -392,6 +410,7 @@ export default function InseminationScreen() {
                       <Text style={s.gridLabel}>Expected Delivery:</Text>
                       <Text style={[s.gridValue, { color: '#6366F1' }]}>
                         {computedCalving.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        <Text style={{ fontWeight: '800' }}>{calvingCountdownText}</Text>
                       </Text>
                     </View>
                   )}

@@ -9,7 +9,7 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { uuid } from '../utils/uuid';
 
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 const SCHEMA_V1 = `
 CREATE TABLE IF NOT EXISTS animals (
@@ -159,6 +159,10 @@ export async function runMigrations(db: SQLiteDatabase): Promise<void> {
     await db.execAsync(`PRAGMA user_version = 2;`);
   }
 
-  // Future migrations:
-  // if (current < 2) { await db.execAsync(...); await db.execAsync('PRAGMA user_version = 2;'); }
+  // Migration v3: Add mother_id and child_number columns to animals table.
+  if (current < 3) {
+    try { await db.execAsync(`ALTER TABLE animals ADD COLUMN mother_id TEXT`); } catch (_) { /* column may exist */ }
+    try { await db.execAsync(`ALTER TABLE animals ADD COLUMN child_number TEXT`); } catch (_) { /* column may exist */ }
+    await db.execAsync(`PRAGMA user_version = 3;`);
+  }
 }

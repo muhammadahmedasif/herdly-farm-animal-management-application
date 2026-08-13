@@ -20,6 +20,8 @@ interface AnimalRow {
   repro_status: string;
   lactation_number: string | null;
   last_insemination_date: string | null;
+  mother_id: string | null;
+  child_number: string | null;
   image_url: string;
   notes: string;
   created_at: string;
@@ -44,6 +46,8 @@ function rowToAnimal(r: AnimalRow): Animal {
     repro_status: r.repro_status as Animal['repro_status'],
     lactation_number: r.lactation_number ?? undefined,
     last_insemination_date: r.last_insemination_date ?? undefined,
+    mother_id: r.mother_id ?? undefined,
+    child_number: r.child_number ?? undefined,
     image_url: r.image_url,
     notes: r.notes,
     created_at: r.created_at,
@@ -67,6 +71,8 @@ async function toRow(a: Animal): Promise<AnimalRow> {
     repro_status: a.repro_status,
     lactation_number: a.lactation_number ?? null,
     last_insemination_date: a.last_insemination_date ?? null,
+    mother_id: a.mother_id ?? null,
+    child_number: a.child_number ?? null,
     image_url,
     notes: a.notes ?? '',
     created_at: a.created_at || nowIso(),
@@ -80,13 +86,13 @@ export const animalRepository = {
     await db.runAsync(
       `INSERT INTO animals (
         id, tag_number, name, species, breed, sex, date_of_birth, dob_is_estimated,
-        color, repro_status, lactation_number, last_insemination_date, image_url,
-        notes, created_at, updated_at
-      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        color, repro_status, lactation_number, last_insemination_date,
+        mother_id, child_number, image_url, notes, created_at, updated_at
+      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [
         r.id, r.tag_number, r.name, r.species, r.breed, r.sex, r.date_of_birth, r.dob_is_estimated,
-        r.color, r.repro_status, r.lactation_number, r.last_insemination_date, r.image_url,
-        r.notes, r.created_at, r.updated_at,
+        r.color, r.repro_status, r.lactation_number, r.last_insemination_date,
+        r.mother_id, r.child_number, r.image_url, r.notes, r.created_at, r.updated_at,
       ],
     );
   },
@@ -112,12 +118,13 @@ export const animalRepository = {
       `UPDATE animals SET
         tag_number = ?, name = ?, species = ?, breed = ?, sex = ?, date_of_birth = ?,
         dob_is_estimated = ?, color = ?, repro_status = ?, lactation_number = ?,
-        last_insemination_date = ?, image_url = ?, notes = ?, updated_at = ?
+        last_insemination_date = ?, mother_id = ?, child_number = ?,
+        image_url = ?, notes = ?, updated_at = ?
        WHERE id = ?`,
       [
         r.tag_number, r.name, r.species, r.breed, r.sex, r.date_of_birth, r.dob_is_estimated,
-        r.color, r.repro_status, r.lactation_number, r.last_insemination_date, r.image_url,
-        r.notes, nowIso(), a.id,
+        r.color, r.repro_status, r.lactation_number, r.last_insemination_date,
+        r.mother_id, r.child_number, r.image_url, r.notes, nowIso(), a.id,
       ],
     );
     if (prev && prev.image_url && prev.image_url !== r.image_url) {
@@ -163,13 +170,14 @@ export const animalRepository = {
     await db.runAsync(
       `INSERT OR IGNORE INTO animals (
         id, tag_number, name, species, breed, sex, date_of_birth, dob_is_estimated,
-        color, repro_status, lactation_number, last_insemination_date, image_url,
-        notes, created_at, updated_at
-      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        color, repro_status, lactation_number, last_insemination_date,
+        mother_id, child_number, image_url, notes, created_at, updated_at
+      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [
         a.id, a.tag_number ?? '', a.name ?? 'Unknown', a.species, a.breed ?? '', a.sex,
         a.date_of_birth ?? '', a.dob_is_estimated ? 1 : 0, a.color ?? '', a.repro_status,
-        a.lactation_number ?? null, a.last_insemination_date ?? null, a.image_url ?? '',
+        a.lactation_number ?? null, a.last_insemination_date ?? null,
+        a.mother_id ?? null, a.child_number ?? null, a.image_url ?? '',
         a.notes ?? '', a.created_at || nowIso(), a.updated_at ?? nowIso(),
       ],
     );

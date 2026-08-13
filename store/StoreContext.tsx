@@ -20,6 +20,7 @@ import {
   vaccinationRepository,
   dewormingRepository,
 } from '../database';
+import { promoteCalves } from '../utils/calfPromotion';
 
 // ─── State shape ────────────────────────────────────────────────────────────
 interface StoreState {
@@ -114,6 +115,18 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           dewormingRepository.getDewormings(db),
         ]);
         if (!cancelled) {
+          // Auto-promote mature calves to adult status in the DB
+          // (runs silently; errors are non-fatal)
+          try {
+            await promoteCalves(animals, async (updated) => {
+              await animalRepository.updateAnimal(updated);
+              // reflect in the local array so dispatch gets the updated list
+              const idx = animals.findIndex(a => a.id === updated.id);
+              if (idx !== -1) animals[idx] = updated;
+            });
+          } catch (e) {
+            console.warn('[Herdly] calf promotion error (non-fatal):', e);
+          }
           dispatch({ type: 'LOAD', payload: { animals, inseminations, calvings, vaccinations, dewormings } });
         }
       } catch (e) {

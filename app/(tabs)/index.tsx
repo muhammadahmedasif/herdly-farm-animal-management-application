@@ -24,6 +24,7 @@ import {
 } from 'lucide-react-native';
 import { Colors, Shadows, Radius } from '../../constants/Colors';
 import { useStore } from '../../store/StoreContext';
+import { useSettings } from '../../store/SettingsContext';
 import { GradientHeader, AppBackground } from '../../components/ui';
 import { getDueDateStatus } from '../../utils/dateCalculations';
 
@@ -71,6 +72,7 @@ const ACTIONS = [
 export default function HomeScreen() {
   const router = useRouter();
   const { animals, vaccinations, dewormings, inseminations } = useStore();
+  const { appName } = useSettings();
 
   const totalAnimals = animals.length;
   const pregnantCount = animals.filter(a => a.repro_status === 'Pregnant').length;
@@ -106,7 +108,7 @@ export default function HomeScreen() {
 
       {/* ── Header ── */}
       <GradientHeader
-        title="Herdly"
+        title={appName}
         subtitle="Livestock Management"
       />
 

@@ -7,19 +7,16 @@ import {
   StatusBar,
   ScrollView,
   TouchableOpacity,
+  TextInput,
 } from 'react-native';
 import { Colors, Shadows, Radius } from '../../constants/Colors';
-import { GradientHeader, AppBackground } from '../../components/ui';
+import { GradientHeader, AppBackground, Select } from '../../components/ui';
+import { useSettings, AppHeaderStyle } from '../../store/SettingsContext';
 
-const SETTINGS_ITEMS = [
-  { emoji: '🔔', title: 'Notification Alerts', subtitle: 'Set reminder timings', color: '#2563EB', bg: '#DBEAFE' },
-  { emoji: '📅', title: 'Health Schedules', subtitle: 'Vaccine & deworming intervals', color: '#16A34A', bg: '#DCFCE7' },
-  { emoji: '🌐', title: 'Language', subtitle: 'English (Default)', color: '#7C3AED', bg: '#EDE9FE' },
-  { emoji: '🛡️', title: 'Data & Privacy', subtitle: 'Manage your farm data', color: '#EA580C', bg: '#FFEDD5' },
-  { emoji: 'ℹ️', title: 'About Herdly', subtitle: 'Version 1.0.0', color: '#374151', bg: '#F3F4F6' },
-];
 
 export default function SettingsScreen() {
+  const { headerStyle, setHeaderStyle, appName, setAppName } = useSettings();
+
   return (
     <AppBackground>
     <SafeAreaView style={styles.safeArea}>
@@ -34,27 +31,64 @@ export default function SettingsScreen() {
         {/* Brand Card */}
         <View style={styles.brandCard}>
           <Text style={styles.brandEmoji}>🐄</Text>
-          <Text style={styles.brandName}>Herdly</Text>
+          <Text style={styles.brandName}>{appName}</Text>
           <Text style={styles.brandTagline}>Livestock Management</Text>
           <View style={styles.brandVersionBadge}>
             <Text style={styles.brandVersionText}>Version 1.0.0</Text>
           </View>
         </View>
 
-        <Text style={styles.sectionLabel}>App Settings</Text>
+        <Text style={styles.sectionLabel}>App Customizations</Text>
 
-        {SETTINGS_ITEMS.map((item) => (
-          <TouchableOpacity key={item.title} style={styles.settingCard} activeOpacity={0.75}>
-            <View style={[styles.iconBox, { backgroundColor: item.bg }]}>
-              <Text style={styles.settingEmoji}>{item.emoji}</Text>
+        <View style={styles.settingCard}>
+          <View style={[styles.iconBox, { backgroundColor: '#EDE9FE' }]}>
+            <Text style={styles.settingEmoji}>🎨</Text>
+          </View>
+          <View style={[styles.settingInfo, { paddingRight: 10 }]}>
+            <Text style={styles.settingTitle}>Top Header Style</Text>
+            <Text style={styles.settingSubtitle}>Choose how the app header looks</Text>
+            <View style={{ marginTop: 12 }}>
+              <Select
+                value={headerStyle}
+                onValueChange={(val) => setHeaderStyle(val as AppHeaderStyle)}
+                options={[
+                  { label: 'Gradient Header', value: 'gradient' },
+                  { label: 'Solid Color Header', value: 'solid' },
+                  { label: 'Minimal / Clean Header', value: 'minimal' },
+                ]}
+              />
             </View>
-            <View style={styles.settingInfo}>
-              <Text style={styles.settingTitle}>{item.title}</Text>
-              <Text style={styles.settingSubtitle}>{item.subtitle}</Text>
+          </View>
+        </View>
+
+        <View style={styles.settingCard}>
+          <View style={[styles.iconBox, { backgroundColor: '#DCFCE7' }]}>
+            <Text style={styles.settingEmoji}>🏷️</Text>
+          </View>
+          <View style={[styles.settingInfo, { paddingRight: 10 }]}>
+            <Text style={styles.settingTitle}>App Name</Text>
+            <Text style={styles.settingSubtitle}>Set your farm or app name</Text>
+            <View style={{ marginTop: 12 }}>
+              <TextInput
+                style={{
+                  height: 48,
+                  backgroundColor: '#F8FAFC',
+                  borderWidth: 1.5,
+                  borderColor: '#E2E8F0',
+                  borderRadius: 12,
+                  paddingHorizontal: 16,
+                  fontSize: 15,
+                  color: '#1F2937',
+                  fontWeight: '600'
+                }}
+                value={appName}
+                onChangeText={setAppName}
+                placeholder="e.g. My Farm"
+                placeholderTextColor={Colors.textMuted}
+              />
             </View>
-            <Text style={styles.arrow}>›</Text>
-          </TouchableOpacity>
-        ))}
+          </View>
+        </View>
 
         <View style={{ height: 30 }} />
       </ScrollView>

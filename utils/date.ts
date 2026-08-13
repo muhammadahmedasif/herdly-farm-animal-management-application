@@ -104,3 +104,9 @@ export function dateFromAge(years: number, months: number, from: Date = new Date
   const day = Math.min(from.getDate(), lastDay);
   return new Date(norm.getFullYear(), norm.getMonth(), day);
 }
+
+/** Compute the difference in days between two dates. */
+export function differenceInDays(date1: Date, date2: Date): number {
+  const diffTime = date1.getTime() - date2.getTime();
+  return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+}

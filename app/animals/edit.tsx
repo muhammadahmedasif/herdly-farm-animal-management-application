@@ -1,6 +1,6 @@
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Calendar, Camera, Check, Hash, Info, Tag, User, Trash2, X } from 'lucide-react-native';
+import { Calendar, Camera, Check, Hash, Info, Tag, Trash2, User, X } from 'lucide-react-native';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
@@ -16,12 +16,13 @@ import {
   View,
 } from 'react-native';
 import Toast from 'react-native-toast-message';
-import { AppBackground, Select } from '../../components/ui';
 import { useImagePicker } from '../../components/PhotoPicker';
+import { AppBackground, Select } from '../../components/ui';
 import { Colors } from '../../constants/Colors';
 import { persistAnimalImage } from '../../database/imageStorage';
 import { useStore } from '../../store/StoreContext';
 import { Animal, ReproStatus, Sex, Species } from '../../types';
+import { getEffectiveReproStatus } from '../../utils/animal';
 import { addDays, calculateAge, dateFromAge, formatAge, getGestationDays, parseDate, toDateString } from '../../utils/date';
 import { useNow } from '../../utils/useNow';
 
@@ -50,10 +51,15 @@ export default function EditAnimalScreen() {
   const [reproStatus, setReproStatus] = useState<ReproStatus>('Open');
   const [lactationNo, setLactationNo] = useState('');
   const [image, setImage] = useState<string | null>(null);
-  
+
+  const [motherId, setMotherId] = useState('');
+  const [childNumber, setChildNumber] = useState('');
+
   const [inseminationDate, setInseminationDate] = useState(new Date());
   const [showInsemPicker, setShowInsemPicker] = useState(false);
   const imagePicker = useImagePicker();
+
+  const femaleAnimals = animals.filter(a => a.sex === 'Female' && a.id !== animal?.id && getEffectiveReproStatus(a) !== 'Calf');
 
   // Load existing data
   useEffect(() => {
@@ -74,6 +80,8 @@ export default function EditAnimalScreen() {
       setReproStatus(animal.repro_status);
       if (animal.lactation_number) setLactationNo(animal.lactation_number);
       if (animal.last_insemination_date) setInseminationDate(parseDate(animal.last_insemination_date));
+      if (animal.mother_id) setMotherId(animal.mother_id);
+      if (animal.child_number) setChildNumber(animal.child_number);
       setImage(animal.image_url || null);
     }
   }, [animal]);
@@ -147,6 +155,8 @@ export default function EditAnimalScreen() {
       repro_status: reproStatus,
       lactation_number: sex === 'Female' ? lactationNo : undefined,
       last_insemination_date: sex === 'Female' && ['Pregnant', 'Inseminated'].includes(reproStatus) ? toDateString(inseminationDate) : undefined,
+      mother_id: motherId || undefined,
+      child_number: childNumber.trim() || undefined,
       image_url: await persistAnimalImage(animal.id, image),
     };
 
@@ -160,307 +170,342 @@ export default function EditAnimalScreen() {
     if (!animal) return;
     Alert.alert('Delete Animal', 'Are you sure you want to delete this animal?', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: async () => {
-        await deleteAnimal(animal.id);
-        Toast.show({ type: 'success', text1: 'Deleted', text2: 'Animal deleted.' });
-        router.replace('/animals');
-      }},
+      {
+        text: 'Delete', style: 'destructive', onPress: async () => {
+          await deleteAnimal(animal.id);
+          Toast.show({ type: 'success', text1: 'Deleted', text2: 'Animal deleted.' });
+          router.replace('/animals');
+        }
+      },
     ]);
   };
 
   return (
     <AppBackground>
-    <SafeAreaView style={{ flex: 1 }}>
-      <StatusBar backgroundColor={Colors.primary} barStyle="light-content" />
-      <ScrollView style={s.container} contentContainerStyle={s.content} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+      <SafeAreaView style={{ flex: 1 }}>
+        <StatusBar backgroundColor={Colors.primary} barStyle="light-content" />
+        <ScrollView style={s.container} contentContainerStyle={s.content} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
-      {/* Basic Info */}
-      <View style={s.card}>
-        <View style={s.cardHeaderRow}>
-          <View style={s.iconBg}><Tag color="#fff" size={20} /></View>
-          <Text style={s.sectionHeader}>Basic Info</Text>
-        </View>
+          {/* Basic Info */}
+          <View style={s.card}>
+            <View style={s.cardHeaderRow}>
+              <View style={s.iconBg}><Tag color="#fff" size={20} /></View>
+              <Text style={s.sectionHeader}>Basic Info</Text>
+            </View>
 
-        {/* Optional animal photo (side thumbnail, fully visible) */}
-        <View style={s.photoField}>
-          <TouchableOpacity style={s.photoBox} activeOpacity={0.8} onPress={() => pickImage(setImage)}>
-            {image ? (
-              <Image source={{ uri: image }} style={s.photoPreview} resizeMode="contain" />
-            ) : (
-              <View style={s.photoPlaceholder}>
-                <Camera color={Colors.primary} size={26} />
-              </View>
-            )}
-            {image ? (
-              <TouchableOpacity style={s.photoRemove} activeOpacity={0.7} onPress={() => setImage(null)}>
-                <X color="#fff" size={14} />
+            {/* Optional animal photo (side thumbnail, fully visible) */}
+            <View style={s.photoField}>
+              <TouchableOpacity style={s.photoBox} activeOpacity={0.8} onPress={() => pickImage(setImage)}>
+                {image ? (
+                  <Image source={{ uri: image }} style={s.photoPreview} resizeMode="contain" />
+                ) : (
+                  <View style={s.photoPlaceholder}>
+                    <Camera color={Colors.primary} size={26} />
+                  </View>
+                )}
+                {image ? (
+                  <TouchableOpacity style={s.photoRemove} activeOpacity={0.7} onPress={() => setImage(null)}>
+                    <X color="#fff" size={14} />
+                  </TouchableOpacity>
+                ) : null}
               </TouchableOpacity>
-            ) : null}
-          </TouchableOpacity>
-          <View style={s.photoMeta}>
-            <Text style={s.photoTitle}>Animal Photo</Text>
-            <Text style={s.photoHint}>Optional · tap to add an identifying picture</Text>
-          </View>
-        </View>
-
-        <View style={s.inputGroup}>
-          <Text style={s.label}>Tag Number *</Text>
-          <View style={s.inputWrapper}>
-            <Hash color={Colors.textMuted} size={18} style={s.inputIcon} />
-            <TextInput style={s.input} placeholder="e.g. C-102" value={tag} onChangeText={setTag} placeholderTextColor={Colors.textMuted} />
-          </View>
-        </View>
-
-        <View style={s.inputGroup}>
-          <Text style={s.label}>Name / Alias</Text>
-          <View style={s.inputWrapper}>
-            <User color={Colors.textMuted} size={18} style={s.inputIcon} />
-            <TextInput style={s.input} placeholder="e.g. Nela" value={name} onChangeText={setName} placeholderTextColor={Colors.textMuted} />
-          </View>
-        </View>
-
-        <View style={s.row}>
-          <View style={[s.inputGroup, { flex: 1, paddingRight: 6 }]}>
-            <Text style={s.label}>Species</Text>
-          <View style={s.pickerContainer}>
-            <Select
-              value={species}
-              onValueChange={(v) => setSpecies(v as Species)}
-              options={[
-                { label: 'Cow', value: 'Cow' },
-                { label: 'Buffalo', value: 'Buffalo' },
-                { label: 'Goat', value: 'Goat' },
-                { label: 'Sheep', value: 'Sheep' },
-              ]}
-            />
-          </View>
-          </View>
-
-          <View style={[s.inputGroup, { flex: 1, paddingLeft: 6 }]}>
-            <Text style={s.label}>Breed *</Text>
-            <View style={s.inputWrapper}>
-              <TextInput style={s.input} placeholder="e.g. Sahiwal" value={breed} onChangeText={setBreed} placeholderTextColor={Colors.textMuted} />
-            </View>
-          </View>
-        </View>
-      </View>
-
-      {/* Physical Details */}
-      <View style={s.card}>
-        <View style={s.cardHeaderRow}>
-          <View style={[s.iconBg, { backgroundColor: '#10B981' }]}><Info color="#fff" size={20} /></View>
-          <Text style={[s.sectionHeader, { color: '#10B981' }]}>Physical Details</Text>
-        </View>
-
-        <View style={s.row}>
-          <View style={[s.inputGroup, { flex: 1, paddingRight: 6 }]}>
-            <Text style={s.label}>Sex</Text>
-          <View style={s.pickerContainer}>
-            <Select
-              value={sex}
-              onValueChange={(v) => setSex(v as Sex)}
-              options={[{ label: 'Female', value: 'Female' }, { label: 'Male', value: 'Male' }]}
-            />
-          </View>
-          </View>
-
-          <View style={[s.inputGroup, { flex: 1, paddingLeft: 6 }]}>
-            <Text style={s.label}>Color</Text>
-            <View style={s.inputWrapper}>
-              <TextInput style={s.input} placeholder="e.g. Black" value={color} onChangeText={setColor} placeholderTextColor={Colors.textMuted} />
-            </View>
-          </View>
-        </View>
-
-        {sex === 'Female' && (
-          <View style={s.inputGroup}>
-            <Text style={s.label}>Lactation No.</Text>
-            <View style={s.inputWrapper}>
-              <TextInput style={s.input} placeholder="e.g. 2" keyboardType="numeric" value={lactationNo} onChangeText={setLactationNo} placeholderTextColor={Colors.textMuted} />
-            </View>
-          </View>
-        )}
-
-        <View style={s.ageToggleRow}>
-          <TouchableOpacity
-            style={[s.toggleBtn, ageMode === 'dob' && s.toggleBtnActive]}
-            onPress={() => setAgeMode('dob')}
-            activeOpacity={0.8}
-          >
-            <Text style={[s.toggleText, ageMode === 'dob' && s.toggleTextActive]}>Edit Date of Birth</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[s.toggleBtn, ageMode === 'age' && s.toggleBtnActive]}
-            onPress={() => setAgeMode('age')}
-            activeOpacity={0.8}
-          >
-            <Text style={[s.toggleText, ageMode === 'age' && s.toggleTextActive]}>Edit Age</Text>
-          </TouchableOpacity>
-        </View>
-
-        {ageMode === 'age' ? (
-          <View style={s.ageStatusRow}>
-            <View style={{ flex: 1.7, marginRight: 8 }}>
-              <View style={s.row}>
-                <View style={[s.inputGroup, { flex: 1, marginRight: 8, marginBottom: 0 }]}>
-                  <Text style={s.label}>Years</Text>
-                  <View style={s.inputWrapper}>
-                    <TextInput style={s.input} placeholder="0" keyboardType="numeric" value={age.years} onChangeText={(v) => setAge({ ...age, years: v })} placeholderTextColor={Colors.textMuted} />
-                  </View>
-                </View>
-                <View style={[s.inputGroup, { flex: 1, marginLeft: 8, marginBottom: 0 }]}>
-                  <Text style={s.label}>Months</Text>
-                  <View style={s.inputWrapper}>
-                    <TextInput style={s.input} placeholder="0" keyboardType="numeric" value={age.months} onChangeText={(v) => setAge({ ...age, months: v })} placeholderTextColor={Colors.textMuted} />
-                  </View>
-                </View>
+              <View style={s.photoMeta}>
+                <Text style={s.photoTitle}>Animal Photo</Text>
+                <Text style={s.photoHint}>Optional · tap to add an identifying picture</Text>
               </View>
             </View>
-            <View style={{ flex: 1, marginLeft: 8 }}>
-              <View style={[s.inputGroup, { marginBottom: 0 }]}>
-                <Text style={s.label}>Status</Text>
+
+            <View style={s.inputGroup}>
+              <Text style={s.label}>Tag Number *</Text>
+              <View style={s.inputWrapper}>
+                <Hash color={Colors.textMuted} size={18} style={s.inputIcon} />
+                <TextInput style={s.input} placeholder="e.g. C-102" value={tag} onChangeText={setTag} placeholderTextColor={Colors.textMuted} />
+              </View>
+            </View>
+
+            <View style={s.inputGroup}>
+              <Text style={s.label}>Name / Alias</Text>
+              <View style={s.inputWrapper}>
+                <User color={Colors.textMuted} size={18} style={s.inputIcon} />
+                <TextInput style={s.input} placeholder="e.g. Nela" value={name} onChangeText={setName} placeholderTextColor={Colors.textMuted} />
+              </View>
+            </View>
+
+            <View style={s.row}>
+              <View style={[s.inputGroup, { flex: 1, paddingRight: 6 }]}>
+                <Text style={s.label}>Species</Text>
                 <View style={s.pickerContainer}>
                   <Select
-                    value={reproStatus}
-                    onValueChange={(v) => setReproStatus(v as ReproStatus)}
-                    options={statusOptions.map((opt) => ({ label: opt, value: opt }))}
+                    value={species}
+                    onValueChange={(v) => setSpecies(v as Species)}
+                    options={[
+                      { label: 'Cow', value: 'Cow' },
+                      { label: 'Buffalo', value: 'Buffalo' },
+                      { label: 'Goat', value: 'Goat' },
+                      { label: 'Sheep', value: 'Sheep' },
+                    ]}
                   />
                 </View>
               </View>
+
+              <View style={[s.inputGroup, { flex: 1, paddingLeft: 6 }]}>
+                <Text style={s.label}>Breed *</Text>
+                <View style={s.inputWrapper}>
+                  <TextInput style={s.input} placeholder="e.g. Sahiwal" value={breed} onChangeText={setBreed} placeholderTextColor={Colors.textMuted} />
+                </View>
+              </View>
+            </View>
+
+            {/* Mother Selection (optional) */}
+            <View style={s.inputGroup}>
+              <Text style={s.label}>Select Mother (Optional)</Text>
+              <View style={s.pickerContainer}>
+                <Select
+                  value={motherId}
+                  placeholder="-- No Mother / Unknown --"
+                  onValueChange={setMotherId}
+                  options={[
+                    { label: '-- No Mother / Unknown --', value: '' },
+                    ...femaleAnimals.map(a => ({ label: `${a.tag_number}${a.name && a.name !== 'Unknown' ? ' – ' + a.name : ''}`, value: a.id })),
+                  ]}
+                />
+              </View>
+              <Text style={s.fieldHint}>Link this animal to its mother (for calves and traceability)</Text>
+            </View>
+
+            {/* Child Number */}
+            <View style={s.inputGroup}>
+              <Text style={s.label}>Child No. (Optional)</Text>
+              <View style={s.inputWrapper}>
+                <TextInput
+                  style={s.input}
+                  placeholder="e.g. 1 (1st calf), 2 (2nd calf)..."
+                  value={childNumber}
+                  onChangeText={setChildNumber}
+                  keyboardType="numeric"
+                  placeholderTextColor={Colors.textMuted}
+                />
+              </View>
+              <Text style={s.fieldHint}>Which lactation calf number is this animal?</Text>
             </View>
           </View>
-        ) : (
-          <View style={s.ageStatusRow}>
-            <View style={{ flex: 1.7, marginRight: 8 }}>
-              <View style={[s.inputGroup, { marginBottom: 0 }]}>
-                <Text style={s.label}>Date of Birth</Text>
+
+          {/* Physical Details */}
+          <View style={s.card}>
+            <View style={s.cardHeaderRow}>
+              <View style={[s.iconBg, { backgroundColor: '#10B981' }]}><Info color="#fff" size={20} /></View>
+              <Text style={[s.sectionHeader, { color: '#10B981' }]}>Physical Details</Text>
+            </View>
+
+            <View style={s.row}>
+              <View style={[s.inputGroup, { flex: 1, paddingRight: 6 }]}>
+                <Text style={s.label}>Sex</Text>
+                <View style={s.pickerContainer}>
+                  <Select
+                    value={sex}
+                    onValueChange={(v) => setSex(v as Sex)}
+                    options={[{ label: 'Female', value: 'Female' }, { label: 'Male', value: 'Male' }]}
+                  />
+                </View>
+              </View>
+
+              <View style={[s.inputGroup, { flex: 1, paddingLeft: 6 }]}>
+                <Text style={s.label}>Color</Text>
+                <View style={s.inputWrapper}>
+                  <TextInput style={s.input} placeholder="e.g. Black" value={color} onChangeText={setColor} placeholderTextColor={Colors.textMuted} />
+                </View>
+              </View>
+            </View>
+
+            {sex === 'Female' && (
+              <View style={s.inputGroup}>
+                <Text style={s.label}>Lactation No.</Text>
+                <View style={s.inputWrapper}>
+                  <TextInput style={s.input} placeholder="e.g. 2" keyboardType="numeric" value={lactationNo} onChangeText={setLactationNo} placeholderTextColor={Colors.textMuted} />
+                </View>
+              </View>
+            )}
+
+            <View style={s.ageToggleRow}>
+              <TouchableOpacity
+                style={[s.toggleBtn, ageMode === 'dob' && s.toggleBtnActive]}
+                onPress={() => setAgeMode('dob')}
+                activeOpacity={0.8}
+              >
+                <Text style={[s.toggleText, ageMode === 'dob' && s.toggleTextActive]}>Edit Date of Birth</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[s.toggleBtn, ageMode === 'age' && s.toggleBtnActive]}
+                onPress={() => setAgeMode('age')}
+                activeOpacity={0.8}
+              >
+                <Text style={[s.toggleText, ageMode === 'age' && s.toggleTextActive]}>Edit Age</Text>
+              </TouchableOpacity>
+            </View>
+
+            {ageMode === 'age' ? (
+              <View style={s.ageStatusRow}>
+                <View style={{ flex: 1.7, marginRight: 8 }}>
+                  <View style={s.row}>
+                    <View style={[s.inputGroup, { flex: 1, marginRight: 8, marginBottom: 0 }]}>
+                      <Text style={s.label}>Years</Text>
+                      <View style={s.inputWrapper}>
+                        <TextInput style={s.input} placeholder="0" keyboardType="numeric" value={age.years} onChangeText={(v) => setAge({ ...age, years: v })} placeholderTextColor={Colors.textMuted} />
+                      </View>
+                    </View>
+                    <View style={[s.inputGroup, { flex: 1, marginLeft: 8, marginBottom: 0 }]}>
+                      <Text style={s.label}>Months</Text>
+                      <View style={s.inputWrapper}>
+                        <TextInput style={s.input} placeholder="0" keyboardType="numeric" value={age.months} onChangeText={(v) => setAge({ ...age, months: v })} placeholderTextColor={Colors.textMuted} />
+                      </View>
+                    </View>
+                  </View>
+                </View>
+                <View style={{ flex: 1, marginLeft: 8 }}>
+                  <View style={[s.inputGroup, { marginBottom: 0 }]}>
+                    <Text style={s.label}>Status</Text>
+                    <View style={s.pickerContainer}>
+                      <Select
+                        value={reproStatus}
+                        onValueChange={(v) => setReproStatus(v as ReproStatus)}
+                        options={statusOptions.map((opt) => ({ label: opt, value: opt }))}
+                      />
+                    </View>
+                  </View>
+                </View>
+              </View>
+            ) : (
+              <View style={s.ageStatusRow}>
+                <View style={{ flex: 1.7, marginRight: 8 }}>
+                  <View style={[s.inputGroup, { marginBottom: 0 }]}>
+                    <Text style={s.label}>Date of Birth</Text>
+                    {Platform.OS === 'web' ? (
+                      React.createElement('input', {
+                        type: 'date',
+                        value: toDateString(dob),
+                        max: toDateString(new Date()),
+                        onChange: (e: any) => {
+                          const d = new Date(e.target.value);
+                          if (!isNaN(d.getTime())) setDob(d);
+                        },
+                        style: {
+                          padding: '14px 16px', fontSize: '16px',
+                          fontWeight: '700', color: '#1F2937',
+                          backgroundColor: '#F8FAFC', border: '1.5px solid #E2E8F0',
+                          borderRadius: '16px', cursor: 'pointer', outline: 'none',
+                        }
+                      })
+                    ) : (
+                      <TouchableOpacity style={s.dateBtn} onPress={() => setShowPicker(true)} activeOpacity={0.7}>
+                        <Calendar color={Colors.primary} size={20} style={{ marginRight: 10 }} />
+                        <Text style={s.dateText}>{dob.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</Text>
+                      </TouchableOpacity>
+                    )}
+
+                    {showPicker && Platform.OS !== 'web' && (
+                      <DateTimePicker
+                        value={dob}
+                        mode="date"
+                        display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                        onChange={onDateChange}
+                        maximumDate={new Date()}
+                        style={Platform.OS === 'ios' ? { alignSelf: 'stretch', marginTop: 8 } : {}}
+                      />
+                    )}
+                  </View>
+                </View>
+                <View style={{ flex: 1, marginLeft: 8 }}>
+                  <View style={[s.inputGroup, { marginBottom: 0 }]}>
+                    <Text style={s.label}>Status</Text>
+                    <View style={s.pickerContainer}>
+                      <Select
+                        value={reproStatus}
+                        onValueChange={(v) => setReproStatus(v as ReproStatus)}
+                        options={statusOptions.map((opt) => ({ label: opt, value: opt }))}
+                      />
+                    </View>
+                  </View>
+                </View>
+              </View>
+            )}
+
+            {/* Big calculated value panel */}
+            <View style={s.calcCardBig}>
+              <Text style={s.calcLabel}>{ageMode === 'age' ? 'Calculated Date of Birth' : 'Calculated Age'}</Text>
+              <Text style={s.calcValueBig}>
+                {ageMode === 'age'
+                  ? toDateString(dateFromAge(parseInt(age.years) || 0, parseInt(age.months) || 0, now))
+                  : formatAge(toDateString(dob), now)}
+              </Text>
+            </View>
+
+            {sex === 'Female' && ['Pregnant', 'Inseminated'].includes(reproStatus) && (
+              <View style={s.inputGroup}>
+                <Text style={s.label}>Date of Insemination</Text>
                 {Platform.OS === 'web' ? (
                   React.createElement('input', {
                     type: 'date',
-                    value: toDateString(dob),
+                    value: toDateString(inseminationDate),
                     max: toDateString(new Date()),
                     onChange: (e: any) => {
                       const d = new Date(e.target.value);
-                      if (!isNaN(d.getTime())) setDob(d);
+                      if (!isNaN(d.getTime())) setInseminationDate(d);
                     },
                     style: {
-                      width: '100%', padding: '14px 16px', fontSize: '16px',
+                      padding: '14px 16px', fontSize: '16px',
                       fontWeight: '700', color: '#1F2937',
-                      backgroundColor: '#F8FAFC', border: '1.5px solid #E2E8F0',
+                      backgroundColor: '#F9FAFB', border: '1.5px solid #E5E7EB',
                       borderRadius: '16px', cursor: 'pointer', outline: 'none',
+                      marginBottom: '12px',
                     }
                   })
                 ) : (
-                  <TouchableOpacity style={s.dateBtn} onPress={() => setShowPicker(true)} activeOpacity={0.7}>
+                  <TouchableOpacity style={s.dateBtn} onPress={() => setShowInsemPicker(true)} activeOpacity={0.7}>
                     <Calendar color={Colors.primary} size={20} style={{ marginRight: 10 }} />
-                    <Text style={s.dateText}>{dob.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</Text>
+                    <Text style={s.dateText}>{inseminationDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</Text>
                   </TouchableOpacity>
                 )}
 
-                {showPicker && Platform.OS !== 'web' && (
+                {showInsemPicker && Platform.OS !== 'web' && (
                   <DateTimePicker
-                    value={dob}
+                    value={inseminationDate}
                     mode="date"
                     display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                    onChange={onDateChange}
+                    onChange={(e, d) => {
+                      setShowInsemPicker(false);
+                      if (e.type === 'set' && d) setInseminationDate(d);
+                    }}
                     maximumDate={new Date()}
                     style={Platform.OS === 'ios' ? { alignSelf: 'stretch', marginTop: 8 } : {}}
                   />
                 )}
+
+                {reproStatus === 'Pregnant' && (
+                  <View style={{ marginTop: 12, backgroundColor: '#D1FAE5', padding: 12, borderRadius: 12 }}>
+                    <Text style={{ fontSize: 14, color: '#059669', fontWeight: '800' }}>
+                      Expected Calving: {new Date(addDays(toDateString(inseminationDate), getGestationDays(species))).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+                    </Text>
+                  </View>
+                )}
               </View>
-            </View>
-            <View style={{ flex: 1, marginLeft: 8 }}>
-              <View style={[s.inputGroup, { marginBottom: 0 }]}>
-                <Text style={s.label}>Status</Text>
-                <View style={s.pickerContainer}>
-                  <Select
-                    value={reproStatus}
-                    onValueChange={(v) => setReproStatus(v as ReproStatus)}
-                    options={statusOptions.map((opt) => ({ label: opt, value: opt }))}
-                  />
-                </View>
-              </View>
-            </View>
+            )}
+
           </View>
-        )}
 
-        {/* Big calculated value panel */}
-        <View style={s.calcCardBig}>
-          <Text style={s.calcLabel}>{ageMode === 'age' ? 'Calculated Date of Birth' : 'Calculated Age'}</Text>
-          <Text style={s.calcValueBig}>
-            {ageMode === 'age'
-              ? toDateString(dateFromAge(parseInt(age.years) || 0, parseInt(age.months) || 0, now))
-              : formatAge(toDateString(dob), now)}
-          </Text>
-        </View>
+          <TouchableOpacity style={s.saveBtn} onPress={handleSave} activeOpacity={0.8}>
+            <Check color="#fff" size={24} style={{ marginRight: 8 }} />
+            <Text style={s.saveBtnText}>Update Animal</Text>
+          </TouchableOpacity>
 
-        {sex === 'Female' && ['Pregnant', 'Inseminated'].includes(reproStatus) && (
-          <View style={s.inputGroup}>
-            <Text style={s.label}>Date of Insemination</Text>
-            {Platform.OS === 'web' ? (
-              React.createElement('input', {
-                type: 'date',
-                value: toDateString(inseminationDate),
-                max: toDateString(new Date()),
-                onChange: (e: any) => {
-                  const d = new Date(e.target.value);
-                  if (!isNaN(d.getTime())) setInseminationDate(d);
-                },
-                style: {
-                  width: '100%', padding: '14px 16px', fontSize: '16px',
-                  fontWeight: '700', color: '#1F2937',
-                  backgroundColor: '#F9FAFB', border: '1.5px solid #E5E7EB',
-                  borderRadius: '16px', cursor: 'pointer', outline: 'none',
-                  marginBottom: '12px',
-                }
-              })
-            ) : (
-              <TouchableOpacity style={s.dateBtn} onPress={() => setShowInsemPicker(true)} activeOpacity={0.7}>
-                <Calendar color={Colors.primary} size={20} style={{ marginRight: 10 }} />
-                <Text style={s.dateText}>{inseminationDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</Text>
-              </TouchableOpacity>
-            )}
+          <TouchableOpacity style={s.deleteBtn} onPress={handleDelete} activeOpacity={0.8}>
+            <Trash2 color={Colors.danger} size={20} style={{ marginRight: 8 }} />
+            <Text style={s.deleteBtnText}>Delete Animal</Text>
+          </TouchableOpacity>
 
-            {showInsemPicker && Platform.OS !== 'web' && (
-              <DateTimePicker
-                value={inseminationDate}
-                mode="date"
-                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                onChange={(e, d) => {
-                  setShowInsemPicker(false);
-                  if (e.type === 'set' && d) setInseminationDate(d);
-                }}
-                maximumDate={new Date()}
-                style={Platform.OS === 'ios' ? { alignSelf: 'stretch', marginTop: 8 } : {}}
-              />
-            )}
-
-            {reproStatus === 'Pregnant' && (
-              <View style={{ marginTop: 12, backgroundColor: '#D1FAE5', padding: 12, borderRadius: 12 }}>
-                <Text style={{ fontSize: 14, color: '#059669', fontWeight: '800' }}>
-                  Expected Calving: {new Date(addDays(toDateString(inseminationDate), getGestationDays(species))).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
-                </Text>
-              </View>
-            )}
-          </View>
-        )}
-
-      </View>
-
-      <TouchableOpacity style={s.saveBtn} onPress={handleSave} activeOpacity={0.8}>
-        <Check color="#fff" size={24} style={{ marginRight: 8 }} />
-        <Text style={s.saveBtnText}>Update Animal</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity style={s.deleteBtn} onPress={handleDelete} activeOpacity={0.8}>
-        <Trash2 color={Colors.danger} size={20} style={{ marginRight: 8 }} />
-        <Text style={s.deleteBtnText}>Delete Animal</Text>
-      </TouchableOpacity>
-
-      <View style={{ height: 60 }} />
-    </ScrollView>
-    </SafeAreaView>
-    {imagePicker.modal}
+          <View style={{ height: 60 }} />
+        </ScrollView>
+      </SafeAreaView>
+      {imagePicker.modal}
     </AppBackground>
   );
 }
@@ -539,6 +584,7 @@ const s = StyleSheet.create({
 
   row: { flexDirection: 'row', alignItems: 'center' },
   inputGroup: { marginBottom: 18 },
+  fieldHint: { fontSize: 11, color: '#6B7280', fontWeight: '600', marginTop: 6, marginLeft: 4 },
   label: {
     fontSize: 13,
     fontWeight: '800',

@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import 'react-native-reanimated';
 import Toast from 'react-native-toast-message';
 import { StoreProvider, useStore } from '../store/StoreContext';
+import { SettingsProvider } from '../store/SettingsContext';
 
 export {
   ErrorBoundary,
@@ -106,8 +107,10 @@ function RootStack() {
 
 export default function RootLayout() {
   return (
-    <StoreProvider>
-      <RootStack />
-    </StoreProvider>
+    <SettingsProvider>
+      <StoreProvider>
+        <RootStack />
+      </StoreProvider>
+    </SettingsProvider>
   );
 }

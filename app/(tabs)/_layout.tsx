@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { Home, Beef, HeartPulse } from 'lucide-react-native';
+import { Home, Beef, Settings } from 'lucide-react-native';
 import { Colors } from '../../constants/Colors';
 import { Platform } from 'react-native';
 
@@ -40,8 +40,13 @@ export default function TabLayout() {
         }}
       />
 
-      {/* Hidden from tabs — still routable */}
-      <Tabs.Screen name="settings" options={{ href: null }} />
+      <Tabs.Screen
+        name="settings"
+        options={{
+          title: 'Settings',
+          tabBarIcon: ({ color, size }) => <Settings color={color} size={size} strokeWidth={2} />,
+        }}
+      />
     </Tabs>
   );
 }
