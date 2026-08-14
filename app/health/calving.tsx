@@ -7,7 +7,6 @@ import {
   FlatList,
   Image,
   Platform,
-  SafeAreaView,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -16,6 +15,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 import { AppBackground, Select } from '../../components/ui';
 import { useImagePicker } from '../../components/PhotoPicker';
@@ -301,55 +301,53 @@ export default function CalvingScreen() {
                 </View>
               </View>
 
-            <View style={s.row}>
-              <View style={[s.inputGroup, { flex: 1, paddingRight: 8 }]}>
-                <Text style={s.label}>Calving Date (Optional)</Text>
-                {Platform.OS === 'web' ? (
-                  React.createElement('input', {
-                    type: 'date',
-                    value: calvingDate ? toDateString(calvingDate) : '',
-                    max: toDateString(new Date()),
-                    onChange: (e: any) => {
-                      const v = e.target.value;
-                      if (!v) { setCalvingDate(null); return; }
-                      const d = new Date(v);
-                      if (!isNaN(d.getTime())) setCalvingDate(d);
-                    },
-                    style: {
-                      padding: '14px 16px', fontSize: '16px',
-                      fontWeight: '700', color: '#1F2937',
-                    backgroundColor: '#F8FAFC', border: '1.5px solid #E2E8F0',
-                    borderRadius: '16px', cursor: 'pointer', outline: 'none',
-                    }
-                  })
-                ) : (
-                  <TouchableOpacity style={s.dateBtn} onPress={() => setShowDatePicker(true)}>
-                    <Text style={calvingDate ? s.dateText : [s.dateText, { color: '#9CA3AF' }]}>
-                      {calvingDate ? toDateString(calvingDate) : 'Select date'}
-                    </Text>
-                  </TouchableOpacity>
-                )}
+            <View style={[s.inputGroup, { paddingRight: 8 }]}>
+              <Text style={s.label}>Calving Date (Optional)</Text>
+              {Platform.OS === 'web' ? (
+                React.createElement('input', {
+                  type: 'date',
+                  value: calvingDate ? toDateString(calvingDate) : '',
+                  max: toDateString(new Date()),
+                  onChange: (e: any) => {
+                    const v = e.target.value;
+                    if (!v) { setCalvingDate(null); return; }
+                    const d = new Date(v);
+                    if (!isNaN(d.getTime())) setCalvingDate(d);
+                  },
+                  style: {
+                    padding: '14px 16px', fontSize: '16px',
+                    fontWeight: '700', color: '#1F2937',
+                  backgroundColor: '#F8FAFC', border: '1.5px solid #E2E8F0',
+                  borderRadius: '16px', cursor: 'pointer', outline: 'none',
+                  }
+                })
+              ) : (
+                <TouchableOpacity style={s.dateBtn} onPress={() => setShowDatePicker(true)}>
+                  <Text style={calvingDate ? s.dateText : [s.dateText, { color: '#9CA3AF' }]}>
+                    {calvingDate ? toDateString(calvingDate) : 'Select date'}
+                  </Text>
+                </TouchableOpacity>
+              )}
 
-                {showDatePicker && Platform.OS !== 'web' && (
-                  <DateTimePicker
-                    value={calvingDate ?? new Date()}
-                    mode="date"
-                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                    onChange={onDateChange}
-                    maximumDate={new Date()}
-                    style={Platform.OS === 'ios' ? { alignSelf: 'flex-start', marginBottom: 12 } : {}}
-                  />
-                )}
-              </View>
-              <View style={[s.inputGroup, { flex: 1, paddingLeft: 8 }]}>
-                <Text style={s.label}>Calf Sex</Text>
-                <View style={s.pickerWrapper}>
-                  <Select
-                    value={calfSex}
-                    onValueChange={(v) => setCalfSex(v as Sex)}
-                    options={[{ label: 'Female', value: 'Female' }, { label: 'Male', value: 'Male' }]}
-                  />
-                </View>
+              {showDatePicker && Platform.OS !== 'web' && (
+                <DateTimePicker
+                  value={calvingDate ?? new Date()}
+                  mode="date"
+                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                  onChange={onDateChange}
+                  maximumDate={new Date()}
+                  style={Platform.OS === 'ios' ? { alignSelf: 'flex-start', marginBottom: 12 } : {}}
+                />
+              )}
+            </View>
+            <View style={[s.inputGroup, { paddingLeft: 8 }]}>
+              <Text style={s.label}>Calf Sex</Text>
+              <View style={s.pickerWrapper}>
+                <Select
+                  value={calfSex}
+                  onValueChange={(v) => setCalfSex(v as Sex)}
+                  options={[{ label: 'Female', value: 'Female' }, { label: 'Male', value: 'Male' }]}
+                />
               </View>
             </View>
 
@@ -374,8 +372,8 @@ export default function CalvingScreen() {
               </View>
 
               {calfAgeMode === 'age' ? (
-                <View style={s.row}>
-                  <View style={[s.inputGroup, { flex: 1, marginRight: 8, marginBottom: 0 }]}>
+                <View>
+                  <View style={[s.inputGroup, { marginRight: 8, marginBottom: 0 }]}>
                     <Text style={s.label}>Years</Text>
                     <TextInput
                       style={s.input}
@@ -385,7 +383,7 @@ export default function CalvingScreen() {
                       onChangeText={(v) => setCalfAgeInput({ ...calfAgeInput, years: v })}
                     />
                   </View>
-                  <View style={[s.inputGroup, { flex: 1, marginLeft: 8, marginBottom: 0 }]}>
+                  <View style={[s.inputGroup, { marginLeft: 8, marginBottom: 0 }]}>
                     <Text style={s.label}>Months</Text>
                     <TextInput
                       style={s.input}
@@ -403,32 +401,28 @@ export default function CalvingScreen() {
               )}
             </View>
 
-            <View style={s.row}>
-              <View style={[s.inputGroup, { flex: 1, paddingRight: 8 }]}>
-                <Text style={s.label}>Calf Name</Text>
-                <TextInput style={s.input} value={calfName} onChangeText={setCalfName} placeholder="e.g. Nela" />
-              </View>
-              <View style={[s.inputGroup, { flex: 1, paddingLeft: 8 }]}>
-                <Text style={s.label}>Calf Tag Number</Text>
-                <TextInput style={s.input} value={calfTag} onChangeText={setCalfTag} placeholder="e.g. C-105" />
-              </View>
+            <View style={[s.inputGroup, { paddingRight: 8 }]}>
+              <Text style={s.label}>Calf Name</Text>
+              <TextInput style={s.input} value={calfName} onChangeText={setCalfName} placeholder="e.g. Nela" />
+            </View>
+            <View style={[s.inputGroup, { paddingLeft: 8 }]}>
+              <Text style={s.label}>Calf Tag Number</Text>
+              <TextInput style={s.input} value={calfTag} onChangeText={setCalfTag} placeholder="e.g. C-105" />
             </View>
 
-            <View style={s.row}>
-              <View style={[s.inputGroup, { flex: 1, paddingRight: 8 }]}>
-                <Text style={s.label}>Weight (kg)</Text>
-                <TextInput style={s.input} value={calfWeight} onChangeText={setCalfWeight} placeholder="e.g. 28" keyboardType="numeric" />
-              </View>
-              <View style={[s.inputGroup, { flex: 1, paddingLeft: 8 }]}>
-                <Text style={s.label}>Child No.</Text>
-                <TextInput
-                  style={s.input}
-                  value={childNumber}
-                  onChangeText={setChildNumber}
-                  placeholder="e.g. 1st, 2nd..."
-                  keyboardType="numeric"
-                />
-              </View>
+            <View style={[s.inputGroup, { paddingRight: 8 }]}>
+              <Text style={s.label}>Weight (kg)</Text>
+              <TextInput style={s.input} value={calfWeight} onChangeText={setCalfWeight} placeholder="e.g. 28" keyboardType="numeric" />
+            </View>
+            <View style={[s.inputGroup, { paddingLeft: 8 }]}>
+              <Text style={s.label}>Child No.</Text>
+              <TextInput
+                style={s.input}
+                value={childNumber}
+                onChangeText={setChildNumber}
+                placeholder="e.g. 1st, 2nd..."
+                keyboardType="numeric"
+              />
             </View>
 
             <View style={s.photoField}>
@@ -691,11 +685,11 @@ const s = StyleSheet.create({
 
   listCardBody: { gap: 6 },
   gridRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  gridLabel: { fontSize: 13, color: Colors.textSecondary, fontWeight: '600' },
-  gridValue: { fontSize: 14, color: Colors.textPrimary, fontWeight: '800' },
+  gridLabel: { fontSize: 13, color: Colors.textSecondary, fontWeight: '600', flexShrink: 0, marginRight: 8 },
+  gridValue: { fontSize: 14, color: Colors.textPrimary, fontWeight: '800', flexShrink: 1, textAlign: 'right' },
 
   fab: {
-    position: 'absolute', bottom: 24, right: 20, width: 64, height: 64, borderRadius: 32,
+    position: 'absolute', bottom: 100, right: 20, width: 64, height: 64, borderRadius: 32,
     backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center',
     shadowColor: Colors.primary, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.4, shadowRadius: 12, elevation: 10,
   },

@@ -3,7 +3,6 @@ import { ChevronRight, Circle, Filter, Plus, Search } from 'lucide-react-native'
 import { useState } from 'react';
 import {
   FlatList,
-  SafeAreaView,
   StatusBar,
   StyleSheet,
   Text,
@@ -12,6 +11,7 @@ import {
   View,
   Image,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors, Shadows, Radius } from '../../constants/Colors';
 import { SPECIES_EMOJI, Species } from '../../constants/livestock';
 import { useStore } from '../../store/StoreContext';
@@ -320,7 +320,7 @@ const s = StyleSheet.create({
 
   fab: {
     position: 'absolute',
-    bottom: 28, right: 24,
+    bottom: 100, right: 24,
     width: 68, height: 68, borderRadius: 34,
     backgroundColor: Colors.primary,
     alignItems: 'center', justifyContent: 'center',

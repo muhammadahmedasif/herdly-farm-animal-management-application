@@ -10,6 +10,7 @@ import {
   TextStyle,
   StyleProp,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronDown, Check } from 'lucide-react-native';
 import { Colors, Shadows, Radius } from '../constants/Colors';
 import { useSettings } from '../store/SettingsContext';
@@ -27,13 +28,14 @@ export function GradientHeader({
   large?: boolean;
 }) {
   const { headerStyle } = useSettings();
+  const insets = useSafeAreaInsets();
 
   const isMinimal = headerStyle === 'minimal';
   const isSolid = headerStyle === 'solid';
 
   if (isMinimal) {
     return (
-      <View style={[styles.header, { backgroundColor: 'transparent', paddingBottom: 10, paddingTop: 10 }]}>
+      <View style={[styles.header, { backgroundColor: 'transparent', paddingBottom: 10, paddingTop: Math.max(insets.top + 8, 18) }]}>
         <View style={{ flexShrink: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           <View>
             <Text style={[styles.headerTitle, { color: Colors.primary }, large && styles.headerTitleLarge]} numberOfLines={1}>
@@ -48,7 +50,7 @@ export function GradientHeader({
   }
 
   return (
-    <View style={[styles.header, isSolid && { backgroundColor: Colors.primary }]}>
+    <View style={[styles.header, isSolid && { backgroundColor: Colors.primary }, { paddingTop: Math.max(insets.top + 10, 20) }]}>
       {/* Top sheen to suggest a vertical gradient without a native module */}
       {!isSolid && <View style={styles.headerSheen} pointerEvents="none" />}
       <View style={[styles.headerInner, large && styles.headerInnerLarge]}>

@@ -4,7 +4,6 @@ import React, { useState } from 'react';
 import {
   FlatList,
   Platform,
-  SafeAreaView,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -13,6 +12,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 import { AppBackground, Select } from '../../components/ui';
 import { Colors } from '../../constants/Colors';
@@ -100,77 +100,75 @@ export default function VaccinationScreen() {
             <TextInput style={s.input} value={vaccineName} onChangeText={setVaccineName} placeholder="e.g. FMD" />
           </View>
 
-          <View style={s.row}>
-            <View style={[s.inputGroup, { flex: 1, paddingRight: 8 }]}>
-              <Text style={s.label}>Date Given</Text>
-              {Platform.OS === 'web' ? (
-                React.createElement('input', {
-                  type: 'date',
-                  value: toDateString(dateGiven),
-                  max: toDateString(new Date()),
-                  onChange: (e: any) => {
-                    const d = new Date(e.target.value);
-                    if (!isNaN(d.getTime())) setDateGiven(d);
-                  },
-                  style: {
-                    padding: '14px 16px', fontSize: '16px',
-                    fontWeight: '700', color: '#1F2937',
-                    backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0',
-                    borderRadius: '12px', cursor: 'pointer', outline: 'none',
-                  }
-                })
-              ) : Platform.OS === 'android' ? (
-                <TouchableOpacity style={s.dateBtn} onPress={() => setShowDatePicker(true)}>
-                  <Text style={s.dateText}>{toDateString(dateGiven)}</Text>
-                </TouchableOpacity>
-              ) : null}
+          <View style={[s.inputGroup, { paddingRight: 8 }]}>
+            <Text style={s.label}>Date Given</Text>
+            {Platform.OS === 'web' ? (
+              React.createElement('input', {
+                type: 'date',
+                value: toDateString(dateGiven),
+                max: toDateString(new Date()),
+                onChange: (e: any) => {
+                  const d = new Date(e.target.value);
+                  if (!isNaN(d.getTime())) setDateGiven(d);
+                },
+                style: {
+                  padding: '14px 16px', fontSize: '16px',
+                  fontWeight: '700', color: '#1F2937',
+                  backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0',
+                  borderRadius: '12px', cursor: 'pointer', outline: 'none',
+                }
+              })
+            ) : Platform.OS === 'android' ? (
+              <TouchableOpacity style={s.dateBtn} onPress={() => setShowDatePicker(true)}>
+                <Text style={s.dateText}>{toDateString(dateGiven)}</Text>
+              </TouchableOpacity>
+            ) : null}
 
-              {(showDatePicker || Platform.OS === 'ios') && (
-                <DateTimePicker
-                  value={dateGiven}
-                  mode="date"
-                  display="default"
-                  onChange={onDateGivenChange}
-                  maximumDate={new Date()}
-                  style={Platform.OS === 'ios' ? { alignSelf: 'flex-start', marginBottom: 12 } : {}}
-                />
-              )}
-            </View>
-            <View style={[s.inputGroup, { flex: 1, paddingLeft: 8 }]}>
-              <Text style={s.label}>Next Due Date</Text>
-              {Platform.OS === 'web' ? (
-                React.createElement('input', {
-                  type: 'date',
-                  value: toDateString(nextDueDate),
-                  min: toDateString(dateGiven),
-                  onChange: (e: any) => {
-                    const d = new Date(e.target.value);
-                    if (!isNaN(d.getTime())) setNextDueDate(d);
-                  },
-                  style: {
-                    padding: '14px 16px', fontSize: '16px',
-                    fontWeight: '700', color: '#1F2937',
-                    backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0',
-                    borderRadius: '12px', cursor: 'pointer', outline: 'none',
-                  }
-                })
-              ) : Platform.OS === 'android' ? (
-                <TouchableOpacity style={s.dateBtn} onPress={() => setShowNextDatePicker(true)}>
-                  <Text style={s.dateText}>{toDateString(nextDueDate)}</Text>
-                </TouchableOpacity>
-              ) : null}
+            {(showDatePicker || Platform.OS === 'ios') && (
+              <DateTimePicker
+                value={dateGiven}
+                mode="date"
+                display="default"
+                onChange={onDateGivenChange}
+                maximumDate={new Date()}
+                style={Platform.OS === 'ios' ? { alignSelf: 'flex-start', marginBottom: 12 } : {}}
+              />
+            )}
+          </View>
+          <View style={[s.inputGroup, { paddingLeft: 8 }]}>
+            <Text style={s.label}>Next Due Date</Text>
+            {Platform.OS === 'web' ? (
+              React.createElement('input', {
+                type: 'date',
+                value: toDateString(nextDueDate),
+                min: toDateString(dateGiven),
+                onChange: (e: any) => {
+                  const d = new Date(e.target.value);
+                  if (!isNaN(d.getTime())) setNextDueDate(d);
+                },
+                style: {
+                  padding: '14px 16px', fontSize: '16px',
+                  fontWeight: '700', color: '#1F2937',
+                  backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0',
+                  borderRadius: '12px', cursor: 'pointer', outline: 'none',
+                }
+              })
+            ) : Platform.OS === 'android' ? (
+              <TouchableOpacity style={s.dateBtn} onPress={() => setShowNextDatePicker(true)}>
+                <Text style={s.dateText}>{toDateString(nextDueDate)}</Text>
+              </TouchableOpacity>
+            ) : null}
 
-              {(showNextDatePicker || Platform.OS === 'ios') && (
-                <DateTimePicker
-                  value={nextDueDate}
-                  mode="date"
-                  display="default"
-                  onChange={onNextDateChange}
-                  minimumDate={dateGiven}
-                  style={Platform.OS === 'ios' ? { alignSelf: 'flex-start', marginBottom: 12 } : {}}
-                />
-              )}
-            </View>
+            {(showNextDatePicker || Platform.OS === 'ios') && (
+              <DateTimePicker
+                value={nextDueDate}
+                mode="date"
+                display="default"
+                onChange={onNextDateChange}
+                minimumDate={dateGiven}
+                style={Platform.OS === 'ios' ? { alignSelf: 'flex-start', marginBottom: 12 } : {}}
+              />
+            )}
           </View>
 
           <View style={s.inputGroup}>
@@ -217,8 +215,8 @@ export default function VaccinationScreen() {
             return (
               <View style={s.listCard}>
                 <View style={s.listCardHead}>
-                  <Text style={s.listCardTitle}>{animal?.tag_number || 'Unknown'}</Text>
-                  <Text style={s.listCardStatus}>{item.vaccine_name}</Text>
+                  <Text style={[s.listCardTitle, { flex: 1, paddingRight: 8 }]} numberOfLines={2}>{animal?.tag_number || 'Unknown'}</Text>
+                  <Text style={[s.listCardStatus, { flexShrink: 0 }]}>{item.vaccine_name}</Text>
                 </View>
                 <View style={s.listCardBody}>
                   <View style={s.gridRow}>
@@ -280,11 +278,11 @@ const s = StyleSheet.create({
 
   listCardBody: { gap: 6 },
   gridRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  gridLabel: { fontSize: 13, color: Colors.textSecondary, fontWeight: '600' },
-  gridValue: { fontSize: 14, color: Colors.textPrimary, fontWeight: '800' },
+  gridLabel: { fontSize: 13, color: Colors.textSecondary, fontWeight: '600', flexShrink: 0, marginRight: 8 },
+  gridValue: { fontSize: 14, color: Colors.textPrimary, fontWeight: '800', flexShrink: 1, textAlign: 'right' },
 
   fab: {
-    position: 'absolute', bottom: 24, right: 20, width: 64, height: 64, borderRadius: 32,
+    position: 'absolute', bottom: 100, right: 20, width: 64, height: 64, borderRadius: 32,
     backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center',
     shadowColor: Colors.primary, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.4, shadowRadius: 12, elevation: 10,
   },

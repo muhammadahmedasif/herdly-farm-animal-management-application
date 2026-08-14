@@ -6,7 +6,6 @@ import {
   Alert,
   Image,
   Platform,
-  SafeAreaView,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -15,6 +14,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 import { useImagePicker } from '../../components/PhotoPicker';
 import { AppBackground, Select } from '../../components/ui';
@@ -582,7 +582,7 @@ const s = StyleSheet.create({
   photoTitle: { fontSize: 15, fontWeight: '800', color: Colors.textPrimary },
   photoHint: { fontSize: 12, color: Colors.textSecondary, fontWeight: '600', marginTop: 2 },
 
-  row: { flexDirection: 'row', alignItems: 'center' },
+  row: { flexDirection: 'column', alignItems: 'stretch' },
   inputGroup: { marginBottom: 18 },
   fieldHint: { fontSize: 11, color: '#6B7280', fontWeight: '600', marginTop: 6, marginLeft: 4 },
   label: {

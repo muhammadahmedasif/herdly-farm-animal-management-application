@@ -3,12 +3,12 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   StatusBar,
   ScrollView,
   TouchableOpacity,
   TextInput,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors, Shadows, Radius } from '../../constants/Colors';
 import { GradientHeader, AppBackground, Select } from '../../components/ui';
 import { useSettings, AppHeaderStyle } from '../../store/SettingsContext';

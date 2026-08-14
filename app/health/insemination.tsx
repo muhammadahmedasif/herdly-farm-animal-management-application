@@ -5,7 +5,6 @@ import React, { useEffect, useState } from 'react';
 import {
   FlatList,
   Platform,
-  SafeAreaView,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -14,6 +13,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 import { AppBackground, Select } from '../../components/ui';
 import { Colors } from '../../constants/Colors';
@@ -182,72 +182,68 @@ export default function InseminationScreen() {
             </View>
           </View>
 
-          <View style={s.row}>
-            <View style={[s.inputGroup, { flex: 1, paddingRight: 6 }]}>
-              <Text style={s.label}>Lactation No.</Text>
-              <View style={[s.inputWrapper, !animalId && s.inputDisabled]}>
-                <Lock color={Colors.textMuted} size={16} style={{ marginLeft: 16, marginRight: 4 }} />
-                <TextInput
-                  style={[s.input, { paddingLeft: 4 }]}
-                  value={lactation}
-                  onChangeText={setLactation}
-                  editable={false}
-                  placeholder="Select animal"
-                  placeholderTextColor={Colors.textMuted}
-                />
-              </View>
-              <Text style={s.autoHint}>Auto-filled from animal record</Text>
+          <View style={[s.inputGroup, { paddingRight: 6 }]}>
+            <Text style={s.label}>Lactation No.</Text>
+            <View style={[s.inputWrapper, !animalId && s.inputDisabled]}>
+              <Lock color={Colors.textMuted} size={16} style={{ marginLeft: 16, marginRight: 4 }} />
+              <TextInput
+                style={[s.input, { paddingLeft: 4 }]}
+                value={lactation}
+                onChangeText={setLactation}
+                editable={false}
+                placeholder="Select animal"
+                placeholderTextColor={Colors.textMuted}
+              />
             </View>
-            <View style={[s.inputGroup, { flex: 1, paddingLeft: 6 }]}>
-              <Text style={s.label}>Date of Insemination</Text>
-              {Platform.OS === 'web' ? (
-                React.createElement('input', {
-                  type: 'date',
-                  value: toDateString(aiDate),
-                  max: toDateString(new Date()),
-                  onChange: (e: any) => {
-                    const d = new Date(e.target.value);
-                    if (!isNaN(d.getTime())) setAiDate(d);
-                  },
-                  style: {
-                    padding: '14px 16px', fontSize: '16px',
-                    fontWeight: '700', color: '#1F2937',
-                    backgroundColor: '#F9FAFB', border: '1.5px solid #E5E7EB',
-                    borderRadius: '16px', cursor: 'pointer', outline: 'none',
-                  }
-                })
-              ) : (
-                <TouchableOpacity style={s.dateBtn} onPress={() => setShowDatePicker(true)} activeOpacity={0.7}>
-                  <Calendar color={Colors.primary} size={18} style={{ marginRight: 8 }} />
-                  <Text style={s.dateText}>{aiDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</Text>
-                </TouchableOpacity>
-              )}
+            <Text style={s.autoHint}>Auto-filled from animal record</Text>
+          </View>
+          <View style={[s.inputGroup, { paddingLeft: 6 }]}>
+            <Text style={s.label}>Date of Insemination</Text>
+            {Platform.OS === 'web' ? (
+              React.createElement('input', {
+                type: 'date',
+                value: toDateString(aiDate),
+                max: toDateString(new Date()),
+                onChange: (e: any) => {
+                  const d = new Date(e.target.value);
+                  if (!isNaN(d.getTime())) setAiDate(d);
+                },
+                style: {
+                  padding: '14px 16px', fontSize: '16px',
+                  fontWeight: '700', color: '#1F2937',
+                  backgroundColor: '#F9FAFB', border: '1.5px solid #E5E7EB',
+                  borderRadius: '16px', cursor: 'pointer', outline: 'none',
+                }
+              })
+            ) : (
+              <TouchableOpacity style={s.dateBtn} onPress={() => setShowDatePicker(true)} activeOpacity={0.7}>
+                <Calendar color={Colors.primary} size={18} style={{ marginRight: 8 }} />
+                <Text style={s.dateText}>{aiDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</Text>
+              </TouchableOpacity>
+            )}
 
-              {showDatePicker && Platform.OS !== 'web' && (
-                <DateTimePicker
-                  value={aiDate}
-                  mode="date"
-                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                  onChange={onDateChange}
-                  maximumDate={new Date()}
-                  style={Platform.OS === 'ios' ? { alignSelf: 'stretch', marginTop: 8 } : {}}
-                />
-              )}
-            </View>
+            {showDatePicker && Platform.OS !== 'web' && (
+              <DateTimePicker
+                value={aiDate}
+                mode="date"
+                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                onChange={onDateChange}
+                maximumDate={new Date()}
+                style={Platform.OS === 'ios' ? { alignSelf: 'stretch', marginTop: 8 } : {}}
+              />
+            )}
           </View>
 
-          <View style={s.row}>
-            <View style={[s.inputGroup, { flex: 1, paddingRight: 6 }]}>
-              <Text style={s.label}>Bull ID / Name</Text>
-              <View style={s.inputWrapper}>
-                <TextInput style={s.input} value={bull} onChangeText={setBull} placeholder="e.g. B-99" placeholderTextColor={Colors.textMuted} />
-              </View>
+          <View style={[s.inputGroup, { paddingRight: 6 }]}>
+            <Text style={s.label}>Bull ID / Name</Text>
+            <View style={s.inputWrapper}>
+              <TextInput style={s.input} value={bull} onChangeText={setBull} placeholder="e.g. B-99" placeholderTextColor={Colors.textMuted} />
             </View>
-            <View style={[s.inputGroup, { flex: 1, paddingLeft: 6 }]}>
-              <Text style={s.label}>Semen Company</Text>
-              <View style={s.inputWrapper}>
-                <TextInput style={s.input} value={company} onChangeText={setCompany} placeholder="e.g. ABS" placeholderTextColor={Colors.textMuted} />
-              </View>
+          </View>
+          <View style={[s.inputGroup, { paddingLeft: 6 }]}>
+            <Text style={s.label}>Semen Company</Text>
+            <View style={s.inputWrapper}>
+              <TextInput style={s.input} value={company} onChangeText={setCompany} placeholder="e.g. ABS" placeholderTextColor={Colors.textMuted} />
             </View>
           </View>
 
@@ -364,11 +360,11 @@ export default function InseminationScreen() {
                 }}
               >
                 <View style={s.listCardHead}>
-                  <View>
-                    <Text style={s.listCardTitle}>{animal?.name || animal?.tag_number || 'Unknown'}</Text>
+                  <View style={{ flex: 1, paddingRight: 8 }}>
+                    <Text style={s.listCardTitle} numberOfLines={2}>{animal?.name || animal?.tag_number || 'Unknown'}</Text>
                     <Text style={s.lactationText}>Lactation: {getEffectiveLactation(animal)}</Text>
                   </View>
-                  <View style={{ alignItems: 'flex-end' }}>
+                  <View style={{ alignItems: 'flex-end', flexShrink: 0 }}>
                     <View style={[s.statusBadge, { backgroundColor: statusBg }]}>
                       <Text style={[s.listCardStatus, { color: statusColor }]}>{item.pregnancy_status}</Text>
                     </View>
@@ -483,8 +479,8 @@ const s = StyleSheet.create({
 
   listCardBody: { gap: 8 },
   gridRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  gridLabel: { fontSize: 13, color: '#6B7280', fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
-  gridValue: { fontSize: 15, color: '#1F2937', fontWeight: '800' },
+  gridLabel: { fontSize: 13, color: '#6B7280', fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5, flexShrink: 0, marginRight: 8 },
+  gridValue: { fontSize: 14, color: '#1F2937', fontWeight: '800', flexShrink: 1, textAlign: 'right' },
 
   calvingPreview: {
     backgroundColor: '#D1FAE5', borderRadius: 16, padding: 16, marginBottom: 18,
@@ -498,7 +494,7 @@ const s = StyleSheet.create({
   gestationNoteText: { fontSize: 11, color: '#059669', fontWeight: '800' },
 
   fab: {
-    position: 'absolute', bottom: 28, right: 24, width: 68, height: 68, borderRadius: 34,
+    position: 'absolute', bottom: 100, right: 24, width: 68, height: 68, borderRadius: 34,
     backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center',
     shadowColor: Colors.primary, shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.5, shadowRadius: 20, elevation: 12,
   },

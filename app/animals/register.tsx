@@ -5,7 +5,6 @@ import React, { useMemo, useState } from 'react';
 import {
   Image,
   Platform,
-  SafeAreaView,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -14,6 +13,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 import { AppBackground, Select } from '../../components/ui';
 import { useImagePicker } from '../../components/PhotoPicker';
@@ -53,6 +53,8 @@ export default function RegisterAnimalScreen() {
 
   const [inseminationDate, setInseminationDate] = useState(new Date());
   const [showInsemPicker, setShowInsemPicker] = useState(false);
+  const [bullName, setBullName] = useState('');
+  const [semenCompany, setSemenCompany] = useState('');
 
   // Optional instant calf registration when the animal is marked Pregnant
   const [registerCalf, setRegisterCalf] = useState(false);
@@ -184,8 +186,8 @@ export default function RegisterAnimalScreen() {
         animal_id: animalId,
         lactation_number: String(getEffectiveLactation({ repro_status: reproStatus, lactation_number: lactationNo })),
         ai_date: aiDateStr,
-        semen_company: '',
-        bull_name: '',
+        semen_company: semenCompany.trim(),
+        bull_name: bullName.trim(),
         pregnancy_check_date: pcDate,
         pregnancy_status: reproStatus as any,
         expected_calving_date: expectedCalving,
@@ -583,6 +585,22 @@ export default function RegisterAnimalScreen() {
                   </View>
                 );
               })()}
+              
+              <View style={[s.row, { marginTop: 16 }]}>
+                <View style={[s.inputGroup, { flex: 1, paddingRight: 6 }]}>
+                  <Text style={s.label}>Bull Name (Optional)</Text>
+                  <View style={s.inputWrapper}>
+                    <TextInput style={s.input} placeholder="e.g. Max" value={bullName} onChangeText={setBullName} placeholderTextColor={Colors.textMuted} />
+                  </View>
+                </View>
+                <View style={[s.inputGroup, { flex: 1, paddingLeft: 6 }]}>
+                  <Text style={s.label}>Semen Company</Text>
+                  <View style={s.inputWrapper}>
+                    <TextInput style={s.input} placeholder="e.g. Alta" value={semenCompany} onChangeText={setSemenCompany} placeholderTextColor={Colors.textMuted} />
+                  </View>
+                </View>
+              </View>
+
             </View>
           )}
 
@@ -746,7 +764,7 @@ const s = StyleSheet.create({
     color: Colors.primary,
   },
 
-  row: { flexDirection: 'row', alignItems: 'center' },
+  row: { flexDirection: 'column', alignItems: 'stretch' },
   inputGroup: { marginBottom: 18 },
   fieldHint: { fontSize: 11, color: '#6B7280', fontWeight: '600', marginTop: 6, marginLeft: 4 },
 
