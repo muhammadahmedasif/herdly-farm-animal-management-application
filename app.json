@@ -4,7 +4,7 @@
     "slug": "herdly",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/new icon.jpg",
     "scheme": "herdly",
     "userInterfaceStyle": "light",
     "ios": {
@@ -15,7 +15,7 @@
       "package": "com.herdly.livestock",
       "versionCode": 1,
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "foregroundImage": "./assets/images/new icon.jpg",
         "backgroundColor": "#123B63"
       },
       "permissions": [
@@ -25,12 +25,15 @@
         "android.permission.INTERNET"
       ]
     },
+    "web": {
+      "favicon": "./assets/images/new icon.jpg"
+    },
     "plugins": [
       "expo-router",
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash-icon.png",
+          "image": "./assets/images/new icon.jpg",
           "resizeMode": "contain",
           "backgroundColor": "#123B63"
         }

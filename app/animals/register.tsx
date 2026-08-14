@@ -18,11 +18,12 @@ import Toast from 'react-native-toast-message';
 import { AppBackground, Select } from '../../components/ui';
 import { useImagePicker } from '../../components/PhotoPicker';
 import { Colors, Shadows } from '../../constants/Colors';
-import { SPECIES_EMOJI, SPECIES_LIST } from '../../constants/livestock';
+import { SPECIES_LIST, SPECIES_EMOJI } from '../../constants/livestock';
 import { useStore } from '../../store/StoreContext';
 import { Animal, Calving, Insemination, ReproStatus, Sex, Species } from '../../types';
 import { persistAnimalImage } from '../../database/imageStorage';
 import { uuid } from '../../utils/uuid';
+
 import { addDays, dateFromAge, formatAge, getGestationDays, toDateString } from '../../utils/date';
 import { getEffectiveLactation, PREGNANCY_CHECK_DAYS } from '../../utils/lactation';
 import { getEffectiveReproStatus } from '../../utils/animal';
@@ -292,7 +293,7 @@ export default function RegisterAnimalScreen() {
                     onPress={() => setSpecies(sp)}
                     activeOpacity={0.8}
                   >
-                    <Text style={s.speciesEmoji}>{SPECIES_EMOJI[sp]}</Text>
+                    <Text style={{ fontSize: 32, marginBottom: 6 }}>{SPECIES_EMOJI[sp]}</Text>
                     <Text style={[s.speciesName, selected && s.speciesNameActive]}>{sp}</Text>
                     {selected && (
                       <View style={s.speciesCheck}>

@@ -60,53 +60,50 @@ export default function AnimalsScreen() {
     <SafeAreaView style={s.safe}>
       <StatusBar backgroundColor={Colors.primary} barStyle="light-content" />
 
-      {/* Premium Header */}
-      <GradientHeader title="Herdly Register" subtitle="Animal Registry" />
-
-      {/* Search Bar */}
-      <View style={s.searchWrap}>
-        <View style={s.searchBar}>
-          <Search color={Colors.textMuted} size={20} strokeWidth={2.5} />
-          <TextInput
-            style={s.searchInput}
-            placeholder="Search by tag, name, or species..."
-            placeholderTextColor={Colors.textMuted}
-            value={query}
-            onChangeText={setQuery}
-            returnKeyType="search"
-          />
-        </View>
-      </View>
-
-      {/* Filter Chips */}
-      <View style={s.filterRow}>
-        <FlatList
-          data={FILTERS}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          keyExtractor={f => f}
-          contentContainerStyle={{ paddingRight: 16 }}
-          renderItem={({ item: f }) => {
-            const active = activeFilter === f;
-            return (
-              <TouchableOpacity
-                style={[s.chip, active && s.chipActive]}
-                activeOpacity={0.8}
-                onPress={() => router.push({ pathname: '/animals', params: f === 'All' ? {} : { filter: f } })}
-              >
-                <Text style={[s.chipText, active && s.chipTextActive]}>{f}</Text>
-              </TouchableOpacity>
-            );
-          }}
-        />
-      </View>
-
-      {/* Animal List */}
       <FlatList
         data={filtered}
         keyExtractor={(a) => a.id}
         contentContainerStyle={s.list}
         showsVerticalScrollIndicator={false}
+        ListHeaderComponent={
+          <>
+            <GradientHeader title="Herdly Register" subtitle="Animal Registry" />
+            <View style={s.searchWrap}>
+              <View style={s.searchBar}>
+                <Search color={Colors.textMuted} size={20} strokeWidth={2.5} />
+                <TextInput
+                  style={s.searchInput}
+                  placeholder="Search by tag, name, or species..."
+                  placeholderTextColor={Colors.textMuted}
+                  value={query}
+                  onChangeText={setQuery}
+                  returnKeyType="search"
+                />
+              </View>
+            </View>
+            <View style={s.filterRow}>
+              <FlatList
+                data={FILTERS}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                keyExtractor={f => f}
+                contentContainerStyle={{ paddingRight: 16 }}
+                renderItem={({ item: f }) => {
+                  const active = activeFilter === f;
+                  return (
+                    <TouchableOpacity
+                      style={[s.chip, active && s.chipActive]}
+                      activeOpacity={0.8}
+                      onPress={() => router.push({ pathname: '/animals', params: f === 'All' ? {} : { filter: f } })}
+                    >
+                      <Text style={[s.chipText, active && s.chipTextActive]}>{f}</Text>
+                    </TouchableOpacity>
+                  );
+                }}
+              />
+            </View>
+          </>
+        }
         ListEmptyComponent={
           <View style={s.empty}>
             <Filter color={Colors.textMuted} size={48} style={{ marginBottom: 16, opacity: 0.5 }} />
@@ -184,14 +181,26 @@ function Row({ label, value }: { label: string; value: string; }) {
   );
 }
 
-/** Square photo panel on the left of the blue header. Falls back to a centred species emoji. */
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+
+/** Square photo panel on the left of the blue header. Falls back to an icon. */
 function AnimalPhoto({ uri, species }: { uri?: string; species: Species; }) {
   const [err, setErr] = useState(false);
   const resolved = resolveAnimalImageUri(uri);
+
+  const getIconName = (s: Species) => {
+    switch (s) {
+      case 'Cattle': return 'cow';
+      case 'Sheep': return 'sheep';
+      case 'Goat': return 'goat'; // MaterialCommunityIcons has 'goat' ? wait, let me check. If not, fallback to 'cow' or 'sheep'
+      default: return 'cow';
+    }
+  };
+
   if (!resolved || err) {
     return (
       <View style={[s.cardHeadPhoto, s.cardHeadPhotoPlaceholder]}>
-        <Text style={s.cardHeadEmoji}>{SPECIES_EMOJI[species] || '🐄'}</Text>
+        <MaterialCommunityIcons name={species === 'Cattle' ? 'cow' : species === 'Sheep' ? 'sheep' : 'paw'} size={48} color="rgba(255,255,255,0.7)" />
       </View>
     );
   }
